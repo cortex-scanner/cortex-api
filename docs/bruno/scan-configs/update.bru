@@ -1,0 +1,27 @@
+meta {
+  name: update
+  type: http
+  seq: 5
+}
+
+put {
+  url: {{baseUrl}}/scan-configs/:id
+  body: json
+  auth: inherit
+}
+
+params:path {
+  id: f97eed22-5c8c-439e-b0b6-28eaec30d6ce
+}
+
+body:json {
+  {
+    "id": "f97eed22-5c8c-439e-b0b6-28eaec30d6ce",
+    "name": "CHANGED"
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

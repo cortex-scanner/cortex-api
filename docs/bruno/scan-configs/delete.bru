@@ -1,0 +1,20 @@
+meta {
+  name: delete
+  type: http
+  seq: 4
+}
+
+delete {
+  url: {{baseUrl}}/scan-configs/:id
+  body: none
+  auth: inherit
+}
+
+params:path {
+  id: f97eed22-5c8c-439e-b0b6-28eaec30d6ce
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

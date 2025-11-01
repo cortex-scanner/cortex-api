@@ -1,0 +1,20 @@
+meta {
+  name: byID
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/scan-configs/:id
+  body: none
+  auth: inherit
+}
+
+params:path {
+  id: 59c690c2-b0da-49a8-9472-b1a217a02989
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

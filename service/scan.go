@@ -51,8 +51,9 @@ func (s scanService) GetScanConfig(ctx context.Context, id string) (*repository.
 
 func (s scanService) CreateScanConfig(ctx context.Context, name string) (*repository.ScanConfiguration, error) {
 	config := repository.ScanConfiguration{
-		ID:   uuid.New().String(),
-		Name: name,
+		ID:      uuid.New().String(),
+		Name:    name,
+		Targets: make([]repository.ScanAsset, 0),
 	}
 
 	err := s.repo.CreateScanConfiguration(ctx, config)

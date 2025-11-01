@@ -72,6 +72,14 @@ func (s *Server) Start() {
 	s.router.Put("/assets/{id}", handler.Make(assetHandler.HandleUpdate))
 	s.router.Delete("/assets/{id}", handler.Make(assetHandler.HandleDelete))
 
+	// scan config routes
+	scanConfigHandler := handler.NewScanConfigHandler(s.scanService)
+	s.router.Get("/scan-configs", handler.Make(scanConfigHandler.HandleList))
+	s.router.Get("/scan-configs/{id}", handler.Make(scanConfigHandler.HandleGet))
+	s.router.Post("/scan-configs", handler.Make(scanConfigHandler.HandleCreate))
+	s.router.Put("/scan-configs/{id}", handler.Make(scanConfigHandler.HandleUpdate))
+	s.router.Delete("/scan-configs/{id}", handler.Make(scanConfigHandler.HandleDelete))
+
 	// setup default handlers
 	s.router.NotFound(func(w http.ResponseWriter, r *http.Request) {
 		handler.RespondError(w, r, http.StatusNotFound, fmt.Errorf("%s not found", r.URL.Path))

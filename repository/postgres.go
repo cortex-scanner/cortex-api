@@ -21,8 +21,8 @@ var ErrNotFound = errors.New("not found")
 type scanConfigAssetJoin struct {
 	scanConfigID   string
 	scanConfigName string
-	assetID        string
-	assetEndpoint  string
+	assetID        *string
+	assetEndpoint  *string
 }
 
 type PostgresScanRepository struct {
@@ -215,7 +215,7 @@ func (p PostgresScanRepository) ListScanConfigurations(ctx context.Context) ([]S
 			assets.id AS asset_id,
 			assets.endpoint AS asset_endpoint
 		FROM scan_configs
-		INNER JOIN scan_config_asset_map scam ON scan_configs.id = scam.scan_config_id
+		FULL OUTER JOIN scan_config_asset_map scam ON scan_configs.id = scam.scan_config_id
 		LEFT JOIN public.assets ON scam.asset_id = assets.id;
 	`)
 
@@ -242,14 +242,19 @@ func (p PostgresScanRepository) ListScanConfigurations(ctx context.Context) ([]S
 		config, ok := configsMap[joinRes.scanConfigID]
 		if ok {
 			// config already exists
-			config.Targets = append(config.Targets, ScanAsset{ID: joinRes.assetID, Endpoint: joinRes.assetEndpoint})
+			config.Targets = append(config.Targets, ScanAsset{ID: *joinRes.assetID, Endpoint: *joinRes.assetEndpoint})
 			continue
 		} else {
 			// new config
+			var targets = make([]ScanAsset, 0)
+			if joinRes.assetID != nil {
+				targets = append(targets, ScanAsset{ID: *joinRes.assetID, Endpoint: *joinRes.assetEndpoint})
+			}
+
 			configsMap[joinRes.scanConfigID] = &ScanConfiguration{
 				ID:      joinRes.scanConfigID,
 				Name:    joinRes.scanConfigName,
-				Targets: []ScanAsset{{ID: joinRes.assetID, Endpoint: joinRes.assetEndpoint}},
+				Targets: targets,
 			}
 		}
 	}
@@ -283,7 +288,7 @@ func (p PostgresScanRepository) GetScanConfiguration(ctx context.Context, id str
 			assets.id AS asset_id,
 			assets.endpoint AS asset_endpoint
 		FROM scan_configs
-		INNER JOIN scan_config_asset_map scam ON scan_configs.id = scam.scan_config_id
+		FULL OUTER JOIN scan_config_asset_map scam ON scan_configs.id = scam.scan_config_id
 		LEFT JOIN public.assets ON scam.asset_id = assets.id
 		WHERE scan_configs.id = $1;
 	`, id)
@@ -300,6 +305,7 @@ func (p PostgresScanRepository) GetScanConfiguration(ctx context.Context, id str
 	defer rows.Close()
 
 	var config ScanConfiguration
+	config.Targets = make([]ScanAsset, 0)
 	for rows.Next() {
 		var joinRes scanConfigAssetJoin
 		err = rows.Scan(&joinRes.scanConfigID, &joinRes.scanConfigName, &joinRes.assetID, &joinRes.assetEndpoint)
@@ -309,7 +315,11 @@ func (p PostgresScanRepository) GetScanConfiguration(ctx context.Context, id str
 
 		config.ID = joinRes.scanConfigID
 		config.Name = joinRes.scanConfigName
-		config.Targets = append(config.Targets, ScanAsset{ID: joinRes.assetID, Endpoint: joinRes.assetEndpoint})
+
+		if joinRes.assetID == nil {
+			continue
+		}
+		config.Targets = append(config.Targets, ScanAsset{ID: *joinRes.assetID, Endpoint: *joinRes.assetEndpoint})
 	}
 
 	return &config, nil
@@ -431,9 +441,17 @@ func (p PostgresScanRepository) DeleteScanConfiguration(ctx context.Context, id 
 		"scan_config_id": id,
 	}
 
-	_ = tx.QueryRow(ctx, "DELETE FROM scan_config_asset_map WHERE scan_config_id = @scan_config_id RETURNING *", args)
+	row = tx.QueryRow(ctx, "DELETE FROM scan_config_asset_map WHERE scan_config_id = @scan_config_id RETURNING *", args)
 	var tmpConfig ScanConfiguration
 	err = row.Scan(&tmpConfig.ID, &tmpConfig.Name)
+	if err != nil {
+		// don't care if there were no rows in the config
+		if errors.Is(err, pgx.ErrNoRows) {
+			// reset error to not trigger rollback
+			err = nil
+			return nil
+		}
+	}
 
 	return err
 }

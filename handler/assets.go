@@ -1,25 +1,22 @@
 package handler
 
 import (
-	"cortex/logging"
 	"cortex/service"
-	"log/slog"
 	"net/http"
 
 	"github.com/go-playground/validator/v10"
 )
 
-type createRequestBody struct {
+type createAssetRequestBody struct {
 	Endpoint string `json:"endpoint" validate:"required,max=2048"`
 }
 
-type updateRequestBody struct {
+type updateAssetRequestBody struct {
 	ID       string `json:"id" validate:"required,uuid4"`
 	Endpoint string `json:"endpoint" validate:"required,max=2048"`
 }
 
 type AssetHandler struct {
-	logger      *slog.Logger
 	validate    *validator.Validate
 	scanService service.ScanService
 }
@@ -27,7 +24,6 @@ type AssetHandler struct {
 func NewAssetHandler(scanService service.ScanService) *AssetHandler {
 	return &AssetHandler{
 		scanService: scanService,
-		logger:      logging.GetLogger(logging.API),
 		validate:    validator.New(validator.WithRequiredStructEnabled()),
 	}
 }
@@ -58,7 +54,7 @@ func (h AssetHandler) HandleGet(w http.ResponseWriter, r *http.Request) error {
 }
 
 func (h AssetHandler) HandleCreate(w http.ResponseWriter, r *http.Request) error {
-	var requestBody createRequestBody
+	var requestBody createAssetRequestBody
 	if err := ParseAndValidateBody(&requestBody, r, h.validate); err != nil {
 		return WrapError(err)
 	}
@@ -77,7 +73,7 @@ func (h AssetHandler) HandleCreate(w http.ResponseWriter, r *http.Request) error
 func (h AssetHandler) HandleUpdate(w http.ResponseWriter, r *http.Request) error {
 	id := r.PathValue("id")
 
-	var requestBody updateRequestBody
+	var requestBody updateAssetRequestBody
 	if err := ParseAndValidateBody(&requestBody, r, h.validate); err != nil {
 		return WrapError(err)
 	}
