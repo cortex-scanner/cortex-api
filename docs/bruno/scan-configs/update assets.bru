@@ -1,0 +1,29 @@
+meta {
+  name: update assets
+  type: http
+  seq: 6
+}
+
+patch {
+  url: {{baseUrl}}/scan-configs/:id/assets
+  body: json
+  auth: inherit
+}
+
+params:path {
+  id: 59c690c2-b0da-49a8-9472-b1a217a02989
+}
+
+body:json {
+  {
+    "ids": [
+      "f4ef30f1-6315-4187-8d10-39c6f2372d31",
+      "63ad2a18-ccd0-4c70-a6a2-b3f6c46a85cf"
+    ]
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

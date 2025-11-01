@@ -456,6 +456,67 @@ func (p PostgresScanRepository) DeleteScanConfiguration(ctx context.Context, id 
 	return err
 }
 
+func (p PostgresScanRepository) RemoveScanConfigurationAssets(ctx context.Context, scanConfigID string, assetIDs []string) error {
+	tx, err := p.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		switch err {
+		case nil:
+			err = tx.Commit(ctx)
+		default:
+			_ = tx.Rollback(ctx)
+		}
+	}()
+
+	for _, assetID := range assetIDs {
+		args := pgx.NamedArgs{
+			"scan_config_id": scanConfigID,
+			"asset_id":       assetID,
+		}
+
+		_, err = tx.Exec(ctx, "DELETE FROM scan_config_asset_map WHERE scan_config_id = @scan_config_id AND asset_id = @asset_id", args)
+		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return ErrNotFound
+			}
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (p PostgresScanRepository) AddScanConfigurationAssets(ctx context.Context, scanConfigID string, assetIDs []string) error {
+	tx, err := p.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		switch err {
+		case nil:
+			err = tx.Commit(ctx)
+		default:
+			_ = tx.Rollback(ctx)
+		}
+	}()
+
+	for _, assetID := range assetIDs {
+		args := pgx.NamedArgs{
+			"scan_config_id": scanConfigID,
+			"asset_id":       assetID,
+		}
+
+		_, err = tx.Exec(ctx, "INSERT INTO scan_config_asset_map (scan_config_id, asset_id) VALUES(@scan_config_id, @asset_id)", args)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func NewPostgresScanRepository(pool *pgxpool.Pool) *PostgresScanRepository {
 	return &PostgresScanRepository{
 		logger: logging.GetLogger(logging.DataAccess),

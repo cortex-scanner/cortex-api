@@ -43,6 +43,10 @@ type ScanConfigurationRepository interface {
 	UpdateScanConfiguration(ctx context.Context, scanConfiguration ScanConfiguration) error
 	// DeleteScanConfiguration removes a scan configuration using its unique identifier.
 	DeleteScanConfiguration(ctx context.Context, id string) error
+	// RemoveScanConfigurationAssets removes specified assets from a scan configuration identified by its unique ID.
+	RemoveScanConfigurationAssets(ctx context.Context, scanConfigID string, assetIDs []string) error
+	// AddScanConfigurationAssets associates a list of asset IDs with the specified scan configuration in the repository.
+	AddScanConfigurationAssets(ctx context.Context, scanConfigID string, assetIDs []string) error
 }
 
 // ScanRepository combines functionality for managing scan asset data and scan configurations in a repository.

@@ -4,7 +4,9 @@ import (
 	"context"
 	"cortex/logging"
 	"cortex/repository"
+	"fmt"
 	"log/slog"
+	"slices"
 
 	"github.com/google/uuid"
 )
@@ -89,7 +91,6 @@ func (s scanService) UpdateScanConfig(ctx context.Context, id string, newName st
 }
 
 func (s scanService) UpdateScanConfigAssets(ctx context.Context, id string, assetIDs []string) (*repository.ScanConfiguration, error) {
-	// TODO: This implementation needs to be updated when asset association logic is implemented in the repository
 	config, err := s.repo.GetScanConfiguration(ctx, id)
 	if err != nil {
 		s.logger.ErrorContext(ctx, "failed to get scan configuration for asset update",
@@ -97,7 +98,56 @@ func (s scanService) UpdateScanConfigAssets(ctx context.Context, id string, asse
 		return nil, err
 	}
 
-	// Currently we're just returning the config as-is since the repository doesn't yet support asset associations
+	currentAssetIDs := make([]string, 0)
+	for _, asset := range config.Targets {
+		currentAssetIDs = append(currentAssetIDs, asset.ID)
+	}
+
+	// find new assets
+	newAssets := make([]string, 0)
+	for _, assetID := range assetIDs {
+		if _, err := s.repo.GetScanAsset(ctx, assetID); err == nil {
+			if !slices.Contains(currentAssetIDs, assetID) {
+				newAssets = append(newAssets, assetID)
+			}
+		} else {
+			return nil, repository.ErrNotFound
+		}
+	}
+
+	// find removed assets
+	removedAssets := make([]string, 0)
+	for _, assetID := range currentAssetIDs {
+		if !slices.Contains(assetIDs, assetID) {
+			removedAssets = append(removedAssets, assetID)
+		}
+	}
+
+	s.logger.DebugContext(ctx, fmt.Sprintf("adding %d assets, removing %d assets", len(newAssets), len(removedAssets)),
+		logging.FieldScanConfigID, id)
+
+	err = s.repo.AddScanConfigurationAssets(ctx, id, newAssets)
+	if err != nil {
+		s.logger.ErrorContext(ctx, "failed to add assets to scan configuration",
+			logging.FieldScanConfigID, id, logging.FieldError, err)
+		return nil, err
+	}
+	err = s.repo.RemoveScanConfigurationAssets(ctx, id, removedAssets)
+	if err != nil {
+		s.logger.ErrorContext(ctx, "failed to remove assets from scan configuration",
+			logging.FieldScanConfigID, id, logging.FieldError, err)
+	}
+
+	s.logger.InfoContext(ctx, "scan configuration assets updated", logging.FieldScanConfigID, id)
+
+	// get config again to get updated asset list
+	config, err = s.repo.GetScanConfiguration(ctx, id)
+	if err != nil {
+		s.logger.ErrorContext(ctx, "failed to get scan configuration after asset update",
+			logging.FieldScanConfigID, id, logging.FieldError, err)
+		return nil, err
+	}
+
 	return config, nil
 }
 
