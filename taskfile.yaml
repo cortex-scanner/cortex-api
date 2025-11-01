@@ -1,0 +1,54 @@
+version: "3"
+tasks:
+  build:
+    cmds:
+      - go build -o build/cortex-api ./cmd/
+    sources:
+      - ./**/*.go
+    generates:
+      - build/cortex-api
+
+  "build:prod":
+    cmds:
+      - go build -ldflags "-s -w" -o build/cortex-api ./cmd/
+    sources:
+      - ./**/*.go
+    generates:
+      - build/cortex-api
+
+  run:
+    interactive: true
+    dotenv:
+      - .env
+    deps:
+      - build
+    cmds:
+      - ./build/cortex-api {{.CLI_ARGS}}
+
+  lint:
+    cmds:
+      - golangci-lint run
+
+  lint:fix:
+    cmds:
+      - golangci-lint run --fix
+
+  genmock:
+    cmds:
+      - mockery
+
+  test:
+    deps:
+      - genmock
+    cmds:
+      - go test -coverprofile build/coverage ./...
+
+  "coverage:html":
+    deps:
+      - test
+    cmds:
+      - go tool cover -html=build/coverage
+
+  clean:
+    cmds:
+      - rm -r build/

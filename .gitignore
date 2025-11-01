@@ -1,0 +1,8 @@
+build/
+.env
+
+# taskfile checksums
+.task
+
+# auto generated mockery files
+**/mocks*
