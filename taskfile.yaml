@@ -1,5 +1,17 @@
 version: "3"
 tasks:
+  db:migrate:up:
+    dotenv:
+      - .env
+    cmds:
+      - migrate -source file://database/migrations -database "postgres://$CORTEX_POSTGRES_USER:$CORTEX_POSTGRES_PASSWORD@$CORTEX_POSTGRES_HOST:$CORTEX_POSTGRES_PORT/$CORTEX_POSTGRES_DATABASE?sslmode=disable" up
+
+  db:migrate:create:
+    dotenv:
+      - .env
+    cmds:
+      - migrate create -ext sql -dir database/migrations {{.CLI_ARGS}}
+
   build:
     cmds:
       - go build -o build/cortex-api ./cmd/
@@ -22,6 +34,7 @@ tasks:
       - .env
     deps:
       - build
+      - db:migrate:up
     cmds:
       - ./build/cortex-api {{.CLI_ARGS}}
 
