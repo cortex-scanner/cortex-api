@@ -517,6 +517,132 @@ func (p PostgresScanRepository) AddScanConfigurationAssets(ctx context.Context, 
 	return nil
 }
 
+func (p PostgresScanRepository) ListScans(ctx context.Context) ([]ScanExecution, error) {
+	tx, err := p.pool.Begin(ctx)
+	if err != nil {
+		return []ScanExecution{}, err
+	}
+	defer func() {
+		switch err {
+		case nil:
+			err = tx.Commit(ctx)
+		default:
+			_ = tx.Rollback(ctx)
+		}
+	}()
+
+	rows, err := tx.Query(ctx, `SELECT * FROM scans`)
+	if err != nil {
+		// return empty list if no identities are found
+		if errors.Is(err, pgx.ErrNoRows) {
+			// reset error to not trigger rollback
+			err = nil
+			return []ScanExecution{}, nil
+		}
+		return nil, err
+	}
+	defer rows.Close()
+
+	var scans []ScanExecution
+	for rows.Next() {
+		var scan ScanExecution
+		err = rows.Scan(&scan.ID, &scan.ScanConfigurationID, &scan.StartTime, &scan.EndTime, &scan.Status)
+		if err != nil {
+			return nil, err
+		}
+		scans = append(scans, scan)
+	}
+
+	return scans, nil
+}
+
+func (p PostgresScanRepository) GetScan(ctx context.Context, id string) (*ScanExecution, error) {
+	tx, err := p.pool.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		switch err {
+		case nil:
+			err = tx.Commit(ctx)
+		default:
+			_ = tx.Rollback(ctx)
+		}
+	}()
+
+	row := tx.QueryRow(ctx, "SELECT * FROM scans WHERE id = $1", id)
+
+	var scan ScanExecution
+	err = row.Scan(&scan.ID, &scan.ScanConfigurationID, &scan.StartTime, &scan.EndTime, &scan.Status)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+	return &scan, nil
+}
+
+func (p PostgresScanRepository) CreateScan(ctx context.Context, scanRun ScanExecution) error {
+	tx, err := p.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		switch err {
+		case nil:
+			err = tx.Commit(ctx)
+		default:
+			_ = tx.Rollback(ctx)
+		}
+	}()
+
+	args := pgx.NamedArgs{
+		"id":              scanRun.ID,
+		"scan_config_id":  scanRun.ScanConfigurationID,
+		"scan_start_time": scanRun.StartTime,
+		"scan_end_time":   scanRun.EndTime,
+		"status":          scanRun.Status,
+	}
+
+	_, err = tx.Exec(ctx, "INSERT INTO scans (id, scan_config_id, scan_start_time, scan_end_time, status) VALUES(@id, @scan_config_id, @scan_start_time, @scan_end_time, @status)", args)
+	return err
+}
+
+func (p PostgresScanRepository) UpdateScan(ctx context.Context, scanRun ScanExecution) error {
+	tx, err := p.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		switch err {
+		case nil:
+			err = tx.Commit(ctx)
+		default:
+			_ = tx.Rollback(ctx)
+		}
+	}()
+
+	args := pgx.NamedArgs{
+		"id":              scanRun.ID,
+		"scan_config_id":  scanRun.ScanConfigurationID,
+		"scan_start_time": scanRun.StartTime,
+		"scan_end_time":   scanRun.EndTime,
+		"status":          scanRun.Status,
+	}
+
+	row := tx.QueryRow(ctx, "UPDATE scans SET scan_config_id = @scan_config_id, scan_start_time = @scan_start_time, scan_end_time = @scan_end_time, status = @status WHERE id = @id RETURNING *", args)
+	var scan ScanExecution
+	err = row.Scan(&scan.ID, &scan.ScanConfigurationID, &scan.StartTime, &scan.EndTime, &scan.Status)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrNotFound
+		}
+		return err
+	}
+	return nil
+}
+
 func NewPostgresScanRepository(pool *pgxpool.Pool) *PostgresScanRepository {
 	return &PostgresScanRepository{
 		logger: logging.GetLogger(logging.DataAccess),

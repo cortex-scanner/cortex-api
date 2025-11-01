@@ -1,6 +1,9 @@
 package repository
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 // ScanAsset defines a target endpoint for a scan
 type ScanAsset struct {
@@ -13,6 +16,25 @@ type ScanConfiguration struct {
 	ID      string      `json:"id"`
 	Name    string      `json:"name"`
 	Targets []ScanAsset `json:"targets"`
+}
+
+type ScanStatus string
+
+const (
+	ScanStatusQueued    ScanStatus = "queued"
+	ScanStatusRunning   ScanStatus = "running"
+	ScanStatusComplete  ScanStatus = "complete"
+	ScanStatusFailed    ScanStatus = "failed"
+	ScanStatusCancelled ScanStatus = "cancelled"
+)
+
+// ScanExecution represents metadata and status details for a single scan execution.
+type ScanExecution struct {
+	ID                  string     `json:"id"`
+	ScanConfigurationID string     `json:"scanConfigurationId"`
+	Status              ScanStatus `json:"status"`
+	StartTime           *time.Time `json:"startTime"`
+	EndTime             *time.Time `json:"endTime"`
 }
 
 // ScanAssetRepository defines an interface for managing and interacting with scan asset data in a repository.
@@ -28,8 +50,6 @@ type ScanAssetRepository interface {
 	// DeleteScanAsset removes a scan asset from the repository using its unique identifier.
 	DeleteScanAsset(ctx context.Context, id string) error
 }
-
-// TODO: Add support for updating scan configuration assets
 
 // ScanConfigurationRepository defines methods to manage scan configurations in a repository.
 type ScanConfigurationRepository interface {
@@ -49,8 +69,21 @@ type ScanConfigurationRepository interface {
 	AddScanConfigurationAssets(ctx context.Context, scanConfigID string, assetIDs []string) error
 }
 
+// ScanExecutionRepository defines methods for managing scan executions and their metadata in a repository.
+type ScanExecutionRepository interface {
+	// ListScans retrieves all scan executions from the repository.
+	ListScans(ctx context.Context) ([]ScanExecution, error)
+	// GetScan fetches a specific scan execution given its unique identifier.
+	GetScan(ctx context.Context, id string) (*ScanExecution, error)
+	// CreateScan adds a new scan execution to the repository.
+	CreateScan(ctx context.Context, scanRun ScanExecution) error
+	// UpdateScan modifies an existing scan execution in the repository.
+	UpdateScan(ctx context.Context, scanRun ScanExecution) error
+}
+
 // ScanRepository combines functionality for managing scan asset data and scan configurations in a repository.
 type ScanRepository interface {
 	ScanAssetRepository
 	ScanConfigurationRepository
+	ScanExecutionRepository
 }

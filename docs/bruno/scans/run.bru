@@ -1,0 +1,22 @@
+meta {
+  name: run
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{baseUrl}}/scans
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "configId": "59c690c2-b0da-49a8-9472-b1a217a02989"
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

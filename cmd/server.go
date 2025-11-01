@@ -81,6 +81,13 @@ func (s *Server) Start() {
 	s.router.Put("/scan-configs/{id}", handler.Make(scanConfigHandler.HandleUpdate))
 	s.router.Delete("/scan-configs/{id}", handler.Make(scanConfigHandler.HandleDelete))
 
+	// scan routes
+	scanHandler := handler.NewScanHandler(s.scanService)
+	s.router.Get("/scans", handler.Make(scanHandler.HandleList))
+	s.router.Get("/scans/{id}", handler.Make(scanHandler.HandleGet))
+	s.router.Post("/scans", handler.Make(scanHandler.HandleRun))
+	s.router.Patch("/scans/{id}", handler.Make(scanHandler.HandleUpdate))
+
 	// setup default handlers
 	s.router.NotFound(func(w http.ResponseWriter, r *http.Request) {
 		handler.RespondError(w, r, http.StatusNotFound, fmt.Errorf("%s not found", r.URL.Path))

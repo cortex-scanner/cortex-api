@@ -1,0 +1,27 @@
+meta {
+  name: update
+  type: http
+  seq: 4
+}
+
+patch {
+  url: {{baseUrl}}/scans/:id
+  body: json
+  auth: inherit
+}
+
+params:path {
+  id: b39d419f-f053-442c-9ca7-e4e570b78b65
+}
+
+body:json {
+  {
+    "status": "running",
+    "startTime": 1762017662
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

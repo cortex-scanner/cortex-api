@@ -11,6 +11,7 @@ const (
 	FieldError        string = "error"
 	FieldScanConfigID string = "scanConfigId"
 	FieldAssetID      string = "assetId"
+	FieldScanID       string = "scanId"
 )
 
 type ContextHandler struct {

@@ -7,9 +7,16 @@ import (
 	"fmt"
 	"log/slog"
 	"slices"
+	"time"
 
 	"github.com/google/uuid"
 )
+
+type ScanUpdateOptions struct {
+	StartTime time.Time
+	EndTime   time.Time
+	Status    string
+}
 
 type ScanService interface {
 	ListScanConfigs(ctx context.Context) ([]repository.ScanConfiguration, error)
@@ -24,6 +31,11 @@ type ScanService interface {
 	CreateAsset(ctx context.Context, endpoint string) (*repository.ScanAsset, error)
 	DeleteAsset(ctx context.Context, id string) (*repository.ScanAsset, error)
 	UpdateAsset(ctx context.Context, id string, newEndpoint string) (*repository.ScanAsset, error)
+
+	RunScan(ctx context.Context, configID string) (*repository.ScanExecution, error)
+	ListScans(ctx context.Context) ([]repository.ScanExecution, error)
+	GetScan(ctx context.Context, id string) (*repository.ScanExecution, error)
+	UpdateScan(ctx context.Context, scanID string, update ScanUpdateOptions) (*repository.ScanExecution, error)
 }
 
 type scanService struct {
@@ -247,6 +259,86 @@ func (s scanService) UpdateAsset(ctx context.Context, id string, newEndpoint str
 	s.logger.InfoContext(ctx, "scan asset updated", logging.FieldAssetID, id)
 
 	return asset, nil
+}
+
+func (s scanService) RunScan(ctx context.Context, configID string) (*repository.ScanExecution, error) {
+	// check if scan config exists
+	config, err := s.repo.GetScanConfiguration(ctx, configID)
+	if err != nil {
+		s.logger.ErrorContext(ctx, "failed to get scan configuration",
+			logging.FieldError, err)
+		return nil, err
+	}
+
+	scan := repository.ScanExecution{
+		ID:                  uuid.New().String(),
+		ScanConfigurationID: config.ID,
+		Status:              repository.ScanStatusQueued,
+		StartTime:           nil,
+		EndTime:             nil,
+	}
+
+	err = s.repo.CreateScan(ctx, scan)
+	if err != nil {
+		s.logger.ErrorContext(ctx, "failed to create scan",
+			logging.FieldError, err)
+		return nil, err
+	}
+
+	s.logger.InfoContext(ctx, "queued scan execution",
+		logging.FieldScanConfigID, config.ID, logging.FieldScanID, scan.ID)
+
+	return &scan, nil
+}
+
+func (s scanService) ListScans(ctx context.Context) ([]repository.ScanExecution, error) {
+	scans, err := s.repo.ListScans(ctx)
+	if err != nil {
+		s.logger.ErrorContext(ctx, "failed to list scans", logging.FieldError, err)
+		return nil, err
+	}
+	return scans, nil
+}
+
+func (s scanService) GetScan(ctx context.Context, id string) (*repository.ScanExecution, error) {
+	scan, err := s.repo.GetScan(ctx, id)
+	if err != nil {
+		s.logger.ErrorContext(ctx, "failed to get scan", logging.FieldError, err)
+		return nil, err
+	}
+	return scan, nil
+}
+
+func (s scanService) UpdateScan(ctx context.Context, scanID string, update ScanUpdateOptions) (*repository.ScanExecution, error) {
+	// check if scan exists
+	scan, err := s.repo.GetScan(ctx, scanID)
+	if err != nil {
+		s.logger.ErrorContext(ctx, "failed to get scan",
+			logging.FieldError, err)
+		return nil, err
+	}
+
+	// apply updates
+	if !update.StartTime.Before(time.Date(1970, 1, 1, 2, 0, 0, 0, time.UTC)) {
+		scan.StartTime = &update.StartTime
+	}
+	if !update.EndTime.Before(time.Date(1970, 1, 1, 2, 0, 0, 0, time.UTC)) {
+		scan.EndTime = &update.EndTime
+	}
+	if update.Status != "" {
+		scan.Status = repository.ScanStatus(update.Status)
+	}
+
+	err = s.repo.UpdateScan(ctx, *scan)
+	if err != nil {
+		s.logger.ErrorContext(ctx, "failed to update scan",
+			logging.FieldError, err)
+		return nil, err
+	}
+
+	s.logger.InfoContext(ctx, "updated scan", logging.FieldScanID, scan.ID)
+
+	return scan, nil
 }
 
 func NewScanService(scanRepo repository.ScanRepository) ScanService {
