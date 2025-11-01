@@ -5,12 +5,14 @@ import (
 	"cortex/logging"
 	"cortex/repository"
 	"log/slog"
+
+	"github.com/google/uuid"
 )
 
 type ScanService interface {
 	ListScanConfigs(ctx context.Context) ([]repository.ScanConfiguration, error)
 	GetScanConfig(ctx context.Context, id string) (*repository.ScanConfiguration, error)
-	CreateScanConfig(ctx context.Context, name string) error
+	CreateScanConfig(ctx context.Context, name string) (*repository.ScanConfiguration, error)
 	UpdateScanConfig(ctx context.Context, id string, newName string) (*repository.ScanConfiguration, error)
 	UpdateScanConfigAssets(ctx context.Context, id string, assetIDs []string) (*repository.ScanConfiguration, error)
 	DeleteScanConfig(ctx context.Context, id string) (*repository.ScanConfiguration, error)
@@ -28,58 +30,172 @@ type scanService struct {
 }
 
 func (s scanService) ListScanConfigs(ctx context.Context) ([]repository.ScanConfiguration, error) {
-	//TODO implement me
-	panic("implement me")
+	configs, err := s.repo.ListScanConfigurations(ctx)
+	if err != nil {
+		s.logger.ErrorContext(ctx, "failed to list scan configurations", logging.FieldError, err)
+		return nil, err
+	}
+	return configs, nil
 }
 
 func (s scanService) GetScanConfig(ctx context.Context, id string) (*repository.ScanConfiguration, error) {
-	//TODO implement me
-	panic("implement me")
+	config, err := s.repo.GetScanConfiguration(ctx, id)
+	if err != nil {
+		s.logger.ErrorContext(ctx, "failed to get scan configuration",
+			logging.FieldScanConfigID, id,
+			logging.FieldError, err)
+		return nil, err
+	}
+	return config, nil
 }
 
-func (s scanService) CreateScanConfig(ctx context.Context, name string) error {
-	//TODO implement me
-	panic("implement me")
+func (s scanService) CreateScanConfig(ctx context.Context, name string) (*repository.ScanConfiguration, error) {
+	config := repository.ScanConfiguration{
+		ID:   uuid.New().String(),
+		Name: name,
+	}
+
+	err := s.repo.CreateScanConfiguration(ctx, config)
+	if err != nil {
+		s.logger.ErrorContext(ctx, "failed to create scan configuration", logging.FieldError, err)
+		return nil, err
+	}
+
+	s.logger.InfoContext(ctx, "scan configuration created", logging.FieldScanConfigID, config.ID)
+
+	return &config, nil
 }
 
 func (s scanService) UpdateScanConfig(ctx context.Context, id string, newName string) (*repository.ScanConfiguration, error) {
-	//TODO implement me
-	panic("implement me")
+	config, err := s.repo.GetScanConfiguration(ctx, id)
+	if err != nil {
+		s.logger.ErrorContext(ctx, "failed to get scan configuration for update",
+			logging.FieldScanConfigID, id, logging.FieldError, err)
+		return nil, err
+	}
+
+	config.Name = newName
+	err = s.repo.UpdateScanConfiguration(ctx, *config)
+	if err != nil {
+		s.logger.ErrorContext(ctx, "failed to update scan configuration",
+			logging.FieldScanConfigID, id, logging.FieldError, err)
+		return nil, err
+	}
+
+	s.logger.InfoContext(ctx, "scan configuration updated", logging.FieldScanConfigID, id)
+
+	return config, nil
 }
 
 func (s scanService) UpdateScanConfigAssets(ctx context.Context, id string, assetIDs []string) (*repository.ScanConfiguration, error) {
-	//TODO implement me
-	panic("implement me")
+	// TODO: This implementation needs to be updated when asset association logic is implemented in the repository
+	config, err := s.repo.GetScanConfiguration(ctx, id)
+	if err != nil {
+		s.logger.ErrorContext(ctx, "failed to get scan configuration for asset update",
+			logging.FieldScanConfigID, id, logging.FieldError, err)
+		return nil, err
+	}
+
+	// Currently we're just returning the config as-is since the repository doesn't yet support asset associations
+	return config, nil
 }
 
 func (s scanService) DeleteScanConfig(ctx context.Context, id string) (*repository.ScanConfiguration, error) {
-	//TODO implement me
-	panic("implement me")
+	config, err := s.repo.GetScanConfiguration(ctx, id)
+	if err != nil {
+		s.logger.ErrorContext(ctx, "failed to get scan configuration for deletion",
+			logging.FieldScanConfigID, id, logging.FieldError, err)
+		return nil, err
+	}
+
+	err = s.repo.DeleteScanConfiguration(ctx, id)
+	if err != nil {
+		s.logger.ErrorContext(ctx, "failed to delete scan configuration",
+			logging.FieldScanConfigID, id, logging.FieldError, err)
+		return nil, err
+	}
+
+	s.logger.InfoContext(ctx, "scan configuration deleted", logging.FieldScanConfigID, id)
+
+	return config, nil
 }
 
 func (s scanService) ListAssets(ctx context.Context) ([]repository.ScanAsset, error) {
-	//TODO implement me
-	panic("implement me")
+	assets, err := s.repo.ListScanAssets(ctx)
+	if err != nil {
+		s.logger.ErrorContext(ctx, "failed to list scan assets", logging.FieldError, err)
+		return nil, err
+	}
+	return assets, nil
 }
 
 func (s scanService) GetAsset(ctx context.Context, id string) (*repository.ScanAsset, error) {
-	//TODO implement me
-	panic("implement me")
+	asset, err := s.repo.GetScanAsset(ctx, id)
+	if err != nil {
+		s.logger.ErrorContext(ctx, "failed to get scan asset",
+			logging.FieldAssetID, id, logging.FieldError, err)
+		return nil, err
+	}
+	return asset, nil
 }
 
 func (s scanService) CreateAsset(ctx context.Context, endpoint string) (*repository.ScanAsset, error) {
-	//TODO implement me
-	panic("implement me")
+	asset := repository.ScanAsset{
+		ID:       uuid.New().String(),
+		Endpoint: endpoint,
+	}
+
+	err := s.repo.CreateScanAsset(ctx, asset)
+	if err != nil {
+		s.logger.ErrorContext(ctx, "failed to create scan asset",
+			logging.FieldError, err)
+		return nil, err
+	}
+
+	s.logger.InfoContext(ctx, "scan asset created", logging.FieldAssetID, asset.ID)
+
+	return &asset, nil
 }
 
 func (s scanService) DeleteAsset(ctx context.Context, id string) (*repository.ScanAsset, error) {
-	//TODO implement me
-	panic("implement me")
+	asset, err := s.repo.GetScanAsset(ctx, id)
+	if err != nil {
+		s.logger.ErrorContext(ctx, "failed to get scan asset for deletion",
+			logging.FieldAssetID, id, logging.FieldError, err)
+		return nil, err
+	}
+
+	err = s.repo.DeleteScanAsset(ctx, id)
+	if err != nil {
+		s.logger.ErrorContext(ctx, "failed to delete scan asset",
+			logging.FieldAssetID, id, logging.FieldError, err)
+		return nil, err
+	}
+
+	s.logger.InfoContext(ctx, "scan asset deleted", logging.FieldAssetID, id)
+
+	return asset, nil
 }
 
 func (s scanService) UpdateAsset(ctx context.Context, id string, newEndpoint string) (*repository.ScanAsset, error) {
-	//TODO implement me
-	panic("implement me")
+	asset, err := s.repo.GetScanAsset(ctx, id)
+	if err != nil {
+		s.logger.ErrorContext(ctx, "Failed to get scan asset for update",
+			logging.FieldAssetID, id, logging.FieldError, err)
+		return nil, err
+	}
+
+	asset.Endpoint = newEndpoint
+	err = s.repo.UpdateScanAsset(ctx, *asset)
+	if err != nil {
+		s.logger.ErrorContext(ctx, "Failed to update scan asset",
+			logging.FieldAssetID, id, logging.FieldError, err)
+		return nil, err
+	}
+
+	s.logger.InfoContext(ctx, "scan asset updated", logging.FieldAssetID, id)
+
+	return asset, nil
 }
 
 func NewScanService(scanRepo repository.ScanRepository) ScanService {

@@ -7,8 +7,10 @@ import (
 )
 
 const (
-	FieldRequestID string = "requestId"
-	FieldError     string = "error"
+	FieldRequestID    string = "requestId"
+	FieldError        string = "error"
+	FieldScanConfigID string = "scanConfigId"
+	FieldAssetID      string = "assetId"
 )
 
 type ContextHandler struct {

@@ -228,7 +228,7 @@ func (p PostgresScanRepository) ListScanConfigurations(ctx context.Context) ([]S
 	}
 	defer rows.Close()
 
-	var configsMap map[string]*ScanConfiguration
+	var configsMap = make(map[string]*ScanConfiguration)
 
 	for rows.Next() {
 		var joinRes scanConfigAssetJoin
