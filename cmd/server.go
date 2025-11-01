@@ -5,6 +5,7 @@ import (
 	"cortex/handler"
 	"cortex/logging"
 	"cortex/middleware"
+	"cortex/service"
 	"errors"
 	"fmt"
 	"net/http"
@@ -21,12 +22,14 @@ import (
 type ServerOptions struct {
 	ListenAddress string
 	CorsOrigin    string
+	ScanService   service.ScanService
 }
 
 type Server struct {
 	ListenAddress string
 	router        chi.Router
 	corsOrigin    string
+	scanService   service.ScanService
 }
 
 func NewServer(opts ServerOptions) *Server {
@@ -34,6 +37,7 @@ func NewServer(opts ServerOptions) *Server {
 		ListenAddress: opts.ListenAddress,
 		router:        chi.NewRouter(),
 		corsOrigin:    opts.CorsOrigin,
+		scanService:   opts.ScanService,
 	}
 }
 
@@ -59,6 +63,14 @@ func (s *Server) Start() {
 
 	// register public routes
 	s.router.Get("/health", handler.Make(handler.HandleHealth))
+
+	// asset routes
+	assetHandler := handler.NewAssetHandler(s.scanService)
+	s.router.Get("/assets", handler.Make(assetHandler.HandleList))
+	s.router.Get("/assets/{id}", handler.Make(assetHandler.HandleGet))
+	s.router.Post("/assets", handler.Make(assetHandler.HandleCreate))
+	s.router.Put("/assets/{id}", handler.Make(assetHandler.HandleUpdate))
+	s.router.Delete("/assets/{id}", handler.Make(assetHandler.HandleDelete))
 
 	// setup default handlers
 	s.router.NotFound(func(w http.ResponseWriter, r *http.Request) {

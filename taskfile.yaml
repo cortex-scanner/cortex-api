@@ -4,7 +4,7 @@ tasks:
     dotenv:
       - .env
     cmds:
-      - migrate -source file://database/migrations -database "postgres://$CORTEX_POSTGRES_USER:$CORTEX_POSTGRES_PASSWORD@$CORTEX_POSTGRES_HOST:$CORTEX_POSTGRES_PORT/$CORTEX_POSTGRES_DATABASE?sslmode=disable" up
+      - migrate -source file://database/migrations -database "$CORTEX_POSTGRES_CONNECTION_STRING" up
 
   db:migrate:create:
     dotenv:

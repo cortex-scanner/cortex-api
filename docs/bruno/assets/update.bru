@@ -1,0 +1,27 @@
+meta {
+  name: update
+  type: http
+  seq: 4
+}
+
+put {
+  url: {{baseUrl}}/assets/:id
+  body: json
+  auth: inherit
+}
+
+params:path {
+  id: dc02b1a5-86c0-4d58-b9a4-ca7878012b46
+}
+
+body:json {
+  {
+    "id": "dc02b1a5-86c0-4d58-b9a4-ca7878012b46",
+    "endpoint": "test4.example.com"
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

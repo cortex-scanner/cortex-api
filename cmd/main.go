@@ -1,12 +1,16 @@
 package main
 
 import (
+	"context"
 	"cortex/logging"
+	"cortex/repository"
+	"cortex/service"
 	"fmt"
 	"log/slog"
 	"os"
 
 	"github.com/caarlos0/env/v11"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/lmittmann/tint"
 )
 
@@ -16,10 +20,11 @@ const (
 )
 
 type AppConfig struct {
-	ListenAddress string     `env:"CORTEX_LISTEN_ADDRESS"`
-	LogLevel      slog.Level `env:"CORTEX_LOG_LEVEL"`
-	Environment   string     `env:"CORTEX_ENVIRONMENT"`
-	CORSOrigin    string     `env:"CORTEX_CORS_ALLOWED_ORIGIN"`
+	ListenAddress            string     `env:"CORTEX_LISTEN_ADDRESS"`
+	LogLevel                 slog.Level `env:"CORTEX_LOG_LEVEL"`
+	Environment              string     `env:"CORTEX_ENVIRONMENT"`
+	CORSOrigin               string     `env:"CORTEX_CORS_ALLOWED_ORIGIN"`
+	PostgresConnectionString string     `env:"CORTEX_POSTGRES_CONNECTION_STRING"`
 }
 
 func main() {
@@ -56,14 +61,41 @@ func main() {
 
 	slog.SetDefault(logger)
 
+	// connect to database
+	pool := setupDatabase(appConfig, logger)
+
+	// setup services
+	scanRepo := repository.NewPostgresScanRepository(pool)
+	scanService := service.NewScanService(scanRepo)
+
 	// start api server
 	serverOptions := ServerOptions{
 		ListenAddress: appConfig.ListenAddress,
 		CorsOrigin:    appConfig.CORSOrigin,
+		ScanService:   scanService,
 	}
 
 	logger.Debug("allowed CORS origin: " + appConfig.CORSOrigin)
 
 	server := NewServer(serverOptions)
 	server.Start()
+}
+
+func setupDatabase(appConfig AppConfig, logger *slog.Logger) *pgxpool.Pool {
+	pool, err := pgxpool.New(context.Background(), appConfig.PostgresConnectionString)
+	if err != nil {
+		logger.Error("failed to parse database connection string", logging.FieldError, err)
+		os.Exit(1)
+	}
+
+	// try database connection
+	var test string
+	err = pool.QueryRow(context.Background(), "SELECT 'test'").Scan(&test)
+	if err != nil {
+		logger.Error("failed to connect to database", logging.FieldError, err)
+		os.Exit(1)
+	}
+	logger.Debug("connected to database")
+
+	return pool
 }

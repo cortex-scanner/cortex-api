@@ -211,3 +211,13 @@ func ParseAndValidateBody[T any](target *T, r *http.Request, validate *validator
 
 	return nil
 }
+
+func WrapError(err error) APIError {
+	var apiErr APIError
+	if errors.As(err, &apiErr) {
+		return apiErr
+	}
+
+	// TODO: handle other cases like not found, unique violation, etc.
+	return OtherError(err)
+}

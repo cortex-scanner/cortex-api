@@ -1,0 +1,20 @@
+meta {
+  name: byID
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/assets/:id
+  body: none
+  auth: inherit
+}
+
+params:path {
+  id: dc02b1a5-86c0-4d58-b9a4-ca7878012b46
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

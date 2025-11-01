@@ -148,7 +148,8 @@ func (p PostgresScanRepository) UpdateScanAsset(ctx context.Context, scanAsset S
 	}
 
 	row := tx.QueryRow(ctx, "UPDATE assets SET endpoint = @endpoint WHERE id = @id RETURNING *", args)
-	err = row.Scan()
+	var asset ScanAsset
+	err = row.Scan(&asset.ID, &asset.Endpoint)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ErrNotFound
@@ -182,7 +183,8 @@ func (p PostgresScanRepository) DeleteScanAsset(ctx context.Context, id string) 
 	}
 
 	row := tx.QueryRow(ctx, "DELETE FROM assets WHERE id = @id RETURNING *", args)
-	err = row.Scan()
+	var asset ScanAsset
+	err = row.Scan(&asset.ID, &asset.Endpoint)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ErrNotFound
@@ -380,7 +382,8 @@ func (p PostgresScanRepository) UpdateScanConfiguration(ctx context.Context, sca
 	}
 
 	row := tx.QueryRow(ctx, "UPDATE scan_configs SET name = @name WHERE id = @id RETURNING *", args)
-	err = row.Scan()
+	var config ScanConfiguration
+	err = row.Scan(&config.ID, &config.Name)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ErrNotFound
@@ -413,7 +416,8 @@ func (p PostgresScanRepository) DeleteScanConfiguration(ctx context.Context, id 
 	}
 
 	row := tx.QueryRow(ctx, "DELETE FROM scan_configs WHERE id = @id RETURNING *", args)
-	err = row.Scan()
+	var config ScanConfiguration
+	err = row.Scan(&config.ID, &config.Name)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ErrNotFound
@@ -428,7 +432,8 @@ func (p PostgresScanRepository) DeleteScanConfiguration(ctx context.Context, id 
 	}
 
 	_ = tx.QueryRow(ctx, "DELETE FROM scan_config_asset_map WHERE scan_config_id = @scan_config_id RETURNING *", args)
-	err = row.Scan()
+	var tmpConfig ScanConfiguration
+	err = row.Scan(&tmpConfig.ID, &tmpConfig.Name)
 
 	return err
 }

@@ -4,15 +4,15 @@ import "context"
 
 // ScanAsset defines a target endpoint for a scan
 type ScanAsset struct {
-	ID       string
-	Endpoint string
+	ID       string `json:"id"`
+	Endpoint string `json:"endpoint"`
 }
 
 // ScanConfiguration defines a scan configuration applied to a scan
 type ScanConfiguration struct {
-	ID      string
-	Name    string
-	Targets []ScanAsset
+	ID      string      `json:"id"`
+	Name    string      `json:"name"`
+	Targets []ScanAsset `json:"targets"`
 }
 
 // ScanAssetRepository defines an interface for managing and interacting with scan asset data in a repository.
