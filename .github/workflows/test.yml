@@ -1,0 +1,57 @@
+
+name: Build dispatcherd
+
+on: [push]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v5
+      
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.25'
+
+      - name: Install Task
+        uses: go-task/setup-task@v1
+
+      - name: Install mockery
+        run: go install github.com/vektra/mockery/v3@latest
+
+      - name: Generate mocks
+        run: task genmock
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v8
+
+  test:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    steps:
+    - uses: actions/checkout@v5
+
+    - name: Install Task
+      uses: go-task/setup-task@v1
+
+    - name: Set up Go
+      uses: actions/setup-go@v6
+      with:
+        go-version: '1.25'
+
+    - name: Install mockery
+      run: go install github.com/vektra/mockery/v3@latest
+
+    - name: Build
+      run: task build
+
+    - name: Test
+      run: task test
