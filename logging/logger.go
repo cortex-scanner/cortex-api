@@ -7,10 +7,9 @@ import (
 type LoggerComponent string
 
 const (
-	API               LoggerComponent = "api"
-	Audit             LoggerComponent = "audit"
-	MessageProcessing LoggerComponent = "processing"
-	DataAccess        LoggerComponent = "dal"
+	API        LoggerComponent = "api"
+	Audit      LoggerComponent = "audit"
+	DataAccess LoggerComponent = "dal"
 )
 
 func GetLogger(component LoggerComponent) *slog.Logger {
