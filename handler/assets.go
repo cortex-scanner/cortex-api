@@ -102,3 +102,17 @@ func (h AssetHandler) HandleDelete(w http.ResponseWriter, r *http.Request) error
 	}
 	return nil
 }
+
+func (h AssetHandler) HandleListAssetDiscoveryResults(w http.ResponseWriter, r *http.Request) error {
+	assetId := r.PathValue("id")
+
+	results, err := h.scanService.ListAssetDiscoveryResults(r.Context(), assetId)
+	if err != nil {
+		return WrapError(err)
+	}
+
+	if err = RespondMany(w, r, results); err != nil {
+		return WrapError(err)
+	}
+	return nil
+}

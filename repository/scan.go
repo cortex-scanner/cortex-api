@@ -11,6 +11,24 @@ type ScanAsset struct {
 	Endpoint string `json:"endpoint"`
 }
 
+type ScanProtocol string
+
+const (
+	ScanProtocolTCP ScanProtocol = "tcp"
+	ScanProtocolUDP ScanProtocol = "udp"
+)
+
+// ScanAssetDiscoveryResult represents the result of discovering an asset during a scan.
+// It includes information about the asset, port, protocol, and discovery timestamps.
+type ScanAssetDiscoveryResult struct {
+	ID        string       `json:"id"`
+	AssetID   string       `json:"assetId"`
+	Port      int          `json:"port"`
+	Protocol  ScanProtocol `json:"protocol"`
+	FirstSeen *time.Time   `json:"firstSeen"`
+	LastSeen  *time.Time   `json:"lastSeen"`
+}
+
 // ScanConfiguration defines a scan configuration applied to a scan
 type ScanConfiguration struct {
 	ID      string      `json:"id"`
@@ -49,6 +67,9 @@ type ScanAssetRepository interface {
 	UpdateScanAsset(ctx context.Context, scanAsset ScanAsset) error
 	// DeleteScanAsset removes a scan asset from the repository using its unique identifier.
 	DeleteScanAsset(ctx context.Context, id string) error
+
+	PutAssetDiscoveryResult(ctx context.Context, result ScanAssetDiscoveryResult) error
+	ListAssetDiscoveryResults(ctx context.Context, assetID string) ([]ScanAssetDiscoveryResult, error)
 }
 
 // ScanConfigurationRepository defines methods to manage scan configurations in a repository.

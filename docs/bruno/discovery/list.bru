@@ -1,0 +1,20 @@
+meta {
+  name: list
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/assets/:id/discovery
+  body: none
+  auth: inherit
+}
+
+params:path {
+  id: 2c996c53-d462-47bf-b344-21fa772a5ea8
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

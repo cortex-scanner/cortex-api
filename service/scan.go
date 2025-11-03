@@ -32,6 +32,8 @@ type ScanService interface {
 	DeleteAsset(ctx context.Context, id string) (*repository.ScanAsset, error)
 	UpdateAsset(ctx context.Context, id string, newEndpoint string) (*repository.ScanAsset, error)
 
+	ListAssetDiscoveryResults(ctx context.Context, assetID string) ([]repository.ScanAssetDiscoveryResult, error)
+
 	RunScan(ctx context.Context, configID string) (*repository.ScanExecution, error)
 	ListScans(ctx context.Context) ([]repository.ScanExecution, error)
 	GetScan(ctx context.Context, id string) (*repository.ScanExecution, error)
@@ -339,6 +341,16 @@ func (s scanService) UpdateScan(ctx context.Context, scanID string, update ScanU
 	s.logger.InfoContext(ctx, "updated scan", logging.FieldScanID, scan.ID)
 
 	return scan, nil
+}
+
+func (s scanService) ListAssetDiscoveryResults(ctx context.Context, assetID string) ([]repository.ScanAssetDiscoveryResult, error) {
+	results, err := s.repo.ListAssetDiscoveryResults(ctx, assetID)
+	if err != nil {
+		s.logger.ErrorContext(ctx, "failed to list asset discovery results",
+			logging.FieldAssetID, assetID, logging.FieldError, err)
+		return nil, err
+	}
+	return results, nil
 }
 
 func NewScanService(scanRepo repository.ScanRepository) ScanService {

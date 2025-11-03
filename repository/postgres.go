@@ -643,6 +643,97 @@ func (p PostgresScanRepository) UpdateScan(ctx context.Context, scanRun ScanExec
 	return nil
 }
 
+func (p PostgresScanRepository) PutAssetDiscoveryResult(ctx context.Context, result ScanAssetDiscoveryResult) error {
+	tx, err := p.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		switch err {
+		case nil:
+			err = tx.Commit(ctx)
+		default:
+			_ = tx.Rollback(ctx)
+		}
+	}()
+
+	// check if already exists
+	row := tx.QueryRow(ctx, "SELECT COUNT(*) FROM asset_discovery WHERE asset_id = $1 AND port = $2 AND protocol = $3",
+		result.AssetID, result.Port, result.Protocol)
+
+	var count int
+	err = row.Scan(&count)
+	if err != nil {
+		return err
+	}
+
+	args := pgx.NamedArgs{
+		"asset_id":   result.AssetID,
+		"port":       result.Port,
+		"protocol":   result.Protocol,
+		"first_seen": result.FirstSeen,
+		"last_seen":  result.LastSeen,
+	}
+
+	if count > 0 {
+		// update
+		_, err = tx.Exec(ctx, `UPDATE asset_discovery SET last_seen = @last_seen WHERE asset_id = @asset_id AND port = @port AND protocol = @protocol`, args)
+		if err != nil {
+			return err
+		}
+	} else {
+		// insert
+		_, err = tx.Exec(ctx, `INSERT INTO asset_discovery (asset_id, port, protocol, first_seen, last_seen)
+								    VALUES(@asset_id, @port, @protocol, @first_seen, @last_seen)`, args)
+
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (p PostgresScanRepository) ListAssetDiscoveryResults(ctx context.Context, assetID string) ([]ScanAssetDiscoveryResult, error) {
+	tx, err := p.pool.Begin(ctx)
+	if err != nil {
+		return []ScanAssetDiscoveryResult{}, err
+	}
+	defer func() {
+		switch err {
+		case nil:
+			err = tx.Commit(ctx)
+		default:
+			_ = tx.Rollback(ctx)
+		}
+	}()
+
+	rows, err := tx.Query(ctx, `SELECT * FROM asset_discovery WHERE asset_id = $1`, assetID)
+	if err != nil {
+		// return empty list if no identities are found
+		if errors.Is(err, pgx.ErrNoRows) {
+			// reset error to not trigger rollback
+			err = nil
+			return []ScanAssetDiscoveryResult{}, nil
+		}
+		return nil, err
+	}
+	defer rows.Close()
+
+	var discoveryResults []ScanAssetDiscoveryResult
+	for rows.Next() {
+		var discoveryResult ScanAssetDiscoveryResult
+		err = rows.Scan(&discoveryResult.AssetID, &discoveryResult.Port,
+			&discoveryResult.Protocol, &discoveryResult.FirstSeen, &discoveryResult.LastSeen)
+		if err != nil {
+			return nil, err
+		}
+		discoveryResults = append(discoveryResults, discoveryResult)
+	}
+
+	return discoveryResults, nil
+}
+
 func NewPostgresScanRepository(pool *pgxpool.Pool) *PostgresScanRepository {
 	return &PostgresScanRepository{
 		logger: logging.GetLogger(logging.DataAccess),

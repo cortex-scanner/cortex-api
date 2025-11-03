@@ -71,6 +71,7 @@ func (s *Server) Start() {
 	s.router.Post("/assets", handler.Make(assetHandler.HandleCreate))
 	s.router.Put("/assets/{id}", handler.Make(assetHandler.HandleUpdate))
 	s.router.Delete("/assets/{id}", handler.Make(assetHandler.HandleDelete))
+	s.router.Get("/assets/{id}/discovery", handler.Make(assetHandler.HandleListAssetDiscoveryResults))
 
 	// scan config routes
 	scanConfigHandler := handler.NewScanConfigHandler(s.scanService)
