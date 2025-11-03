@@ -10,6 +10,7 @@ const (
 	API        LoggerComponent = "api"
 	Audit      LoggerComponent = "audit"
 	DataAccess LoggerComponent = "dal"
+	Scan       LoggerComponent = "scan"
 )
 
 func GetLogger(component LoggerComponent) *slog.Logger {

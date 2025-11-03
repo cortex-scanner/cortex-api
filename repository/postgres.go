@@ -634,7 +634,7 @@ func (p PostgresScanRepository) UpdateScan(ctx context.Context, scanRun ScanExec
 
 	row := tx.QueryRow(ctx, "UPDATE scans SET scan_config_id = @scan_config_id, scan_start_time = @scan_start_time, scan_end_time = @scan_end_time, status = @status WHERE id = @id RETURNING *", args)
 	var scan ScanExecution
-	err = row.Scan(&scan.ID, &scan.ScanConfigurationID, &scan.StartTime, &scan.EndTime, &scan.Status)
+	err = row.Scan(&scan.ID, &scan.ScanConfigurationID, &scan.StartTime, &scan.EndTime, &scan.Status, &scan.Type)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ErrNotFound

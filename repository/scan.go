@@ -21,12 +21,11 @@ const (
 // ScanAssetDiscoveryResult represents the result of discovering an asset during a scan.
 // It includes information about the asset, port, protocol, and discovery timestamps.
 type ScanAssetDiscoveryResult struct {
-	ID        string       `json:"id"`
 	AssetID   string       `json:"assetId"`
 	Port      int          `json:"port"`
 	Protocol  ScanProtocol `json:"protocol"`
-	FirstSeen *time.Time   `json:"firstSeen"`
-	LastSeen  *time.Time   `json:"lastSeen"`
+	FirstSeen time.Time    `json:"firstSeen"`
+	LastSeen  time.Time    `json:"lastSeen"`
 }
 
 // ScanConfiguration defines a scan configuration applied to a scan

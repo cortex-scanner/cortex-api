@@ -4,6 +4,7 @@ import (
 	"context"
 	"cortex/logging"
 	"cortex/repository"
+	"cortex/scanner"
 	"fmt"
 	"log/slog"
 	"slices"
@@ -41,8 +42,9 @@ type ScanService interface {
 }
 
 type scanService struct {
-	repo   repository.ScanRepository
-	logger *slog.Logger
+	repo       repository.ScanRepository
+	logger     *slog.Logger
+	scanRunner *scanner.ScanRunner
 }
 
 func (s scanService) ListScanConfigs(ctx context.Context) ([]repository.ScanConfiguration, error) {
@@ -272,12 +274,13 @@ func (s scanService) RunScan(ctx context.Context, configID string, scanType stri
 		return nil, err
 	}
 
+	now := time.Now()
 	scan := repository.ScanExecution{
 		ID:                  uuid.New().String(),
 		Type:                repository.ScanType(scanType),
 		ScanConfigurationID: config.ID,
-		Status:              repository.ScanStatusQueued,
-		StartTime:           nil,
+		Status:              repository.ScanStatusRunning,
+		StartTime:           &now,
 		EndTime:             nil,
 	}
 
@@ -290,6 +293,14 @@ func (s scanService) RunScan(ctx context.Context, configID string, scanType stri
 
 	s.logger.InfoContext(ctx, "queued scan execution",
 		logging.FieldScanConfigID, config.ID, logging.FieldScanID, scan.ID)
+
+	// run scan
+	err = s.scanRunner.Scan(ctx, scan, *config)
+	if err != nil {
+		s.logger.ErrorContext(ctx, "failed to run scan",
+			logging.FieldError, err)
+		return nil, err
+	}
 
 	return &scan, nil
 }
@@ -356,7 +367,8 @@ func (s scanService) ListAssetDiscoveryResults(ctx context.Context, assetID stri
 
 func NewScanService(scanRepo repository.ScanRepository) ScanService {
 	return scanService{
-		repo:   scanRepo,
-		logger: logging.GetLogger(logging.DataAccess),
+		repo:       scanRepo,
+		logger:     logging.GetLogger(logging.DataAccess),
+		scanRunner: scanner.NewScanRunner(scanRepo),
 	}
 }
