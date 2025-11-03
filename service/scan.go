@@ -34,7 +34,7 @@ type ScanService interface {
 
 	ListAssetDiscoveryResults(ctx context.Context, assetID string) ([]repository.ScanAssetDiscoveryResult, error)
 
-	RunScan(ctx context.Context, configID string) (*repository.ScanExecution, error)
+	RunScan(ctx context.Context, configID string, scanType string) (*repository.ScanExecution, error)
 	ListScans(ctx context.Context) ([]repository.ScanExecution, error)
 	GetScan(ctx context.Context, id string) (*repository.ScanExecution, error)
 	UpdateScan(ctx context.Context, scanID string, update ScanUpdateOptions) (*repository.ScanExecution, error)
@@ -263,7 +263,7 @@ func (s scanService) UpdateAsset(ctx context.Context, id string, newEndpoint str
 	return asset, nil
 }
 
-func (s scanService) RunScan(ctx context.Context, configID string) (*repository.ScanExecution, error) {
+func (s scanService) RunScan(ctx context.Context, configID string, scanType string) (*repository.ScanExecution, error) {
 	// check if scan config exists
 	config, err := s.repo.GetScanConfiguration(ctx, configID)
 	if err != nil {
@@ -274,6 +274,7 @@ func (s scanService) RunScan(ctx context.Context, configID string) (*repository.
 
 	scan := repository.ScanExecution{
 		ID:                  uuid.New().String(),
+		Type:                repository.ScanType(scanType),
 		ScanConfigurationID: config.ID,
 		Status:              repository.ScanStatusQueued,
 		StartTime:           nil,

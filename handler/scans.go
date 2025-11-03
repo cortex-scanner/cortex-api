@@ -10,6 +10,7 @@ import (
 
 type runScanRequestBody struct {
 	ScanConfigId string `json:"configId" validate:"required,uuid4"`
+	Type         string `json:"type" validate:"required,oneof=discovery vuln discovery+vuln"`
 }
 
 type updateScanRequestBody struct {
@@ -61,7 +62,7 @@ func (h ScanHandler) HandleRun(w http.ResponseWriter, r *http.Request) error {
 		return WrapError(err)
 	}
 
-	scan, err := h.scanService.RunScan(r.Context(), requestBody.ScanConfigId)
+	scan, err := h.scanService.RunScan(r.Context(), requestBody.ScanConfigId, requestBody.Type)
 	if err != nil {
 		return WrapError(err)
 	}

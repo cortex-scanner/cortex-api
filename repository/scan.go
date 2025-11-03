@@ -46,10 +46,19 @@ const (
 	ScanStatusCancelled ScanStatus = "cancelled"
 )
 
+type ScanType string
+
+const (
+	ScanTypeDiscovery     ScanType = "discovery"
+	ScanTypeVulnerability ScanType = "vuln"
+	ScanTypeCombined      ScanType = "discovery+vuln"
+)
+
 // ScanExecution represents metadata and status details for a single scan execution.
 type ScanExecution struct {
 	ID                  string     `json:"id"`
 	ScanConfigurationID string     `json:"scanConfigurationId"`
+	Type                ScanType   `json:"type"`
 	Status              ScanStatus `json:"status"`
 	StartTime           *time.Time `json:"startTime"`
 	EndTime             *time.Time `json:"endTime"`

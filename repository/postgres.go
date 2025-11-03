@@ -546,7 +546,7 @@ func (p PostgresScanRepository) ListScans(ctx context.Context) ([]ScanExecution,
 	var scans []ScanExecution
 	for rows.Next() {
 		var scan ScanExecution
-		err = rows.Scan(&scan.ID, &scan.ScanConfigurationID, &scan.StartTime, &scan.EndTime, &scan.Status)
+		err = rows.Scan(&scan.ID, &scan.ScanConfigurationID, &scan.StartTime, &scan.EndTime, &scan.Status, &scan.Type)
 		if err != nil {
 			return nil, err
 		}
@@ -573,7 +573,7 @@ func (p PostgresScanRepository) GetScan(ctx context.Context, id string) (*ScanEx
 	row := tx.QueryRow(ctx, "SELECT * FROM scans WHERE id = $1", id)
 
 	var scan ScanExecution
-	err = row.Scan(&scan.ID, &scan.ScanConfigurationID, &scan.StartTime, &scan.EndTime, &scan.Status)
+	err = row.Scan(&scan.ID, &scan.ScanConfigurationID, &scan.StartTime, &scan.EndTime, &scan.Status, &scan.Type)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, ErrNotFound
@@ -599,13 +599,14 @@ func (p PostgresScanRepository) CreateScan(ctx context.Context, scanRun ScanExec
 
 	args := pgx.NamedArgs{
 		"id":              scanRun.ID,
+		"type":            scanRun.Type,
 		"scan_config_id":  scanRun.ScanConfigurationID,
 		"scan_start_time": scanRun.StartTime,
 		"scan_end_time":   scanRun.EndTime,
 		"status":          scanRun.Status,
 	}
 
-	_, err = tx.Exec(ctx, "INSERT INTO scans (id, scan_config_id, scan_start_time, scan_end_time, status) VALUES(@id, @scan_config_id, @scan_start_time, @scan_end_time, @status)", args)
+	_, err = tx.Exec(ctx, "INSERT INTO scans (id, scan_config_id, scan_start_time, scan_end_time, status, type) VALUES(@id, @scan_config_id, @scan_start_time, @scan_end_time, @status, @type)", args)
 	return err
 }
 
