@@ -51,7 +51,9 @@ func (d DiscoveryScanner) Scan(ctx context.Context, scan repository.ScanExecutio
 	if err != nil {
 		return err
 	}
-	defer naabu.Close()
+	defer func(naabu *runner.Runner) {
+		_ = naabu.Close()
+	}(naabu)
 
 	err = naabu.RunEnumeration(ctx)
 	if err != nil {
