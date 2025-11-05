@@ -515,6 +515,9 @@ func (p PostgresScanRepository) GetAssetStats(ctx context.Context, tx pgx.Tx, as
     `, assetID)
 	var lastDiscoveryTime time.Time
 	err = row.Scan(&lastDiscoveryTime)
+	if err != nil {
+		return nil, err
+	}
 
 	stats := ScanAssetStats{
 		DiscoveredPortsCount: portCount,
