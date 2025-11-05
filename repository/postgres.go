@@ -8,7 +8,6 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 const (
@@ -27,23 +26,9 @@ type scanConfigAssetJoin struct {
 
 type PostgresScanRepository struct {
 	logger *slog.Logger
-	pool   *pgxpool.Pool
 }
 
-func (p PostgresScanRepository) ListScanAssets(ctx context.Context) ([]ScanAsset, error) {
-	tx, err := p.pool.Begin(ctx)
-	if err != nil {
-		return nil, err
-	}
-	defer func() {
-		switch err {
-		case nil:
-			err = tx.Commit(ctx)
-		default:
-			_ = tx.Rollback(ctx)
-		}
-	}()
-
+func (p PostgresScanRepository) ListScanAssets(ctx context.Context, tx pgx.Tx) ([]ScanAsset, error) {
 	rows, err := tx.Query(ctx, `
 		SELECT * FROM assets
 	`)
@@ -51,7 +36,6 @@ func (p PostgresScanRepository) ListScanAssets(ctx context.Context) ([]ScanAsset
 		// return empty list if no identities are found
 		if errors.Is(err, pgx.ErrNoRows) {
 			// reset error to not trigger rollback
-			err = nil
 			return []ScanAsset{}, nil
 		}
 		return nil, err
@@ -71,24 +55,11 @@ func (p PostgresScanRepository) ListScanAssets(ctx context.Context) ([]ScanAsset
 	return assets, nil
 }
 
-func (p PostgresScanRepository) GetScanAsset(ctx context.Context, id string) (*ScanAsset, error) {
-	tx, err := p.pool.Begin(ctx)
-	if err != nil {
-		return nil, err
-	}
-	defer func() {
-		switch err {
-		case nil:
-			err = tx.Commit(ctx)
-		default:
-			_ = tx.Rollback(ctx)
-		}
-	}()
-
+func (p PostgresScanRepository) GetScanAsset(ctx context.Context, tx pgx.Tx, id string) (*ScanAsset, error) {
 	row := tx.QueryRow(ctx, "SELECT * FROM assets WHERE id = $1", id)
 
 	var asset ScanAsset
-	err = row.Scan(&asset.ID, &asset.Endpoint)
+	err := row.Scan(&asset.ID, &asset.Endpoint)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, ErrNotFound
@@ -98,26 +69,13 @@ func (p PostgresScanRepository) GetScanAsset(ctx context.Context, id string) (*S
 	return &asset, nil
 }
 
-func (p PostgresScanRepository) CreateScanAsset(ctx context.Context, scanAsset ScanAsset) error {
-	tx, err := p.pool.Begin(ctx)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		switch err {
-		case nil:
-			err = tx.Commit(ctx)
-		default:
-			_ = tx.Rollback(ctx)
-		}
-	}()
-
+func (p PostgresScanRepository) CreateScanAsset(ctx context.Context, tx pgx.Tx, scanAsset ScanAsset) error {
 	args := pgx.NamedArgs{
 		"id":       scanAsset.ID,
 		"endpoint": scanAsset.Endpoint,
 	}
 
-	_, err = tx.Exec(ctx, "INSERT INTO assets (id, endpoint) VALUES(@id, @endpoint)", args)
+	_, err := tx.Exec(ctx, "INSERT INTO assets (id, endpoint) VALUES(@id, @endpoint)", args)
 
 	var pgErr *pgconn.PgError
 	if err != nil && errors.As(err, &pgErr) && pgErr.Code == PgErrorCodeUniqueViolation {
@@ -128,20 +86,7 @@ func (p PostgresScanRepository) CreateScanAsset(ctx context.Context, scanAsset S
 	return nil
 }
 
-func (p PostgresScanRepository) UpdateScanAsset(ctx context.Context, scanAsset ScanAsset) error {
-	tx, err := p.pool.Begin(ctx)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		switch err {
-		case nil:
-			err = tx.Commit(ctx)
-		default:
-			_ = tx.Rollback(ctx)
-		}
-	}()
-
+func (p PostgresScanRepository) UpdateScanAsset(ctx context.Context, tx pgx.Tx, scanAsset ScanAsset) error {
 	args := pgx.NamedArgs{
 		"id":       scanAsset.ID,
 		"endpoint": scanAsset.Endpoint,
@@ -149,7 +94,7 @@ func (p PostgresScanRepository) UpdateScanAsset(ctx context.Context, scanAsset S
 
 	row := tx.QueryRow(ctx, "UPDATE assets SET endpoint = @endpoint WHERE id = @id RETURNING *", args)
 	var asset ScanAsset
-	err = row.Scan(&asset.ID, &asset.Endpoint)
+	err := row.Scan(&asset.ID, &asset.Endpoint)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ErrNotFound
@@ -164,27 +109,14 @@ func (p PostgresScanRepository) UpdateScanAsset(ctx context.Context, scanAsset S
 	return nil
 }
 
-func (p PostgresScanRepository) DeleteScanAsset(ctx context.Context, id string) error {
-	tx, err := p.pool.Begin(ctx)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		switch err {
-		case nil:
-			err = tx.Commit(ctx)
-		default:
-			_ = tx.Rollback(ctx)
-		}
-	}()
-
+func (p PostgresScanRepository) DeleteScanAsset(ctx context.Context, tx pgx.Tx, id string) error {
 	args := pgx.NamedArgs{
 		"id": id,
 	}
 
 	row := tx.QueryRow(ctx, "DELETE FROM assets WHERE id = @id RETURNING *", args)
 	var asset ScanAsset
-	err = row.Scan(&asset.ID, &asset.Endpoint)
+	err := row.Scan(&asset.ID, &asset.Endpoint)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ErrNotFound
@@ -194,20 +126,7 @@ func (p PostgresScanRepository) DeleteScanAsset(ctx context.Context, id string) 
 	return nil
 }
 
-func (p PostgresScanRepository) ListScanConfigurations(ctx context.Context) ([]ScanConfiguration, error) {
-	tx, err := p.pool.Begin(ctx)
-	if err != nil {
-		return nil, err
-	}
-	defer func() {
-		switch err {
-		case nil:
-			err = tx.Commit(ctx)
-		default:
-			_ = tx.Rollback(ctx)
-		}
-	}()
-
+func (p PostgresScanRepository) ListScanConfigurations(ctx context.Context, tx pgx.Tx) ([]ScanConfiguration, error) {
 	rows, err := tx.Query(ctx, `
 		SELECT
 			scan_configs.id,
@@ -223,7 +142,6 @@ func (p PostgresScanRepository) ListScanConfigurations(ctx context.Context) ([]S
 		// return empty list if no identities are found
 		if errors.Is(err, pgx.ErrNoRows) {
 			// reset error to not trigger rollback
-			err = nil
 			return []ScanConfiguration{}, nil
 		}
 		return nil, err
@@ -267,20 +185,7 @@ func (p PostgresScanRepository) ListScanConfigurations(ctx context.Context) ([]S
 	return configs, nil
 }
 
-func (p PostgresScanRepository) GetScanConfiguration(ctx context.Context, id string) (*ScanConfiguration, error) {
-	tx, err := p.pool.Begin(ctx)
-	if err != nil {
-		return nil, err
-	}
-	defer func() {
-		switch err {
-		case nil:
-			err = tx.Commit(ctx)
-		default:
-			_ = tx.Rollback(ctx)
-		}
-	}()
-
+func (p PostgresScanRepository) GetScanConfiguration(ctx context.Context, tx pgx.Tx, id string) (*ScanConfiguration, error) {
 	rows, err := tx.Query(ctx, `
 		SELECT
 			scan_configs.id,
@@ -297,7 +202,6 @@ func (p PostgresScanRepository) GetScanConfiguration(ctx context.Context, id str
 		// return empty list if no identities are found
 		if errors.Is(err, pgx.ErrNoRows) {
 			// reset error to not trigger rollback
-			err = nil
 			return nil, ErrNotFound
 		}
 		return nil, err
@@ -325,27 +229,14 @@ func (p PostgresScanRepository) GetScanConfiguration(ctx context.Context, id str
 	return &config, nil
 }
 
-func (p PostgresScanRepository) CreateScanConfiguration(ctx context.Context, scanConfiguration ScanConfiguration) error {
-	tx, err := p.pool.Begin(ctx)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		switch err {
-		case nil:
-			err = tx.Commit(ctx)
-		default:
-			_ = tx.Rollback(ctx)
-		}
-	}()
-
+func (p PostgresScanRepository) CreateScanConfiguration(ctx context.Context, tx pgx.Tx, scanConfiguration ScanConfiguration) error {
 	// create scan config first, then in the same transaction associate all assets
 	args := pgx.NamedArgs{
 		"id":   scanConfiguration.ID,
 		"name": scanConfiguration.Name,
 	}
 
-	_, err = tx.Exec(ctx, "INSERT INTO scan_configs (id, name) VALUES(@id, @name)", args)
+	_, err := tx.Exec(ctx, "INSERT INTO scan_configs (id, name) VALUES(@id, @name)", args)
 
 	if err != nil {
 		var pgErr *pgconn.PgError
@@ -372,20 +263,7 @@ func (p PostgresScanRepository) CreateScanConfiguration(ctx context.Context, sca
 }
 
 // UpdateScanConfiguration updates an existing scan configuration in the database with the provided details. Does not update the assets associated with the scan configuration.
-func (p PostgresScanRepository) UpdateScanConfiguration(ctx context.Context, scanConfiguration ScanConfiguration) error {
-	tx, err := p.pool.Begin(ctx)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		switch err {
-		case nil:
-			err = tx.Commit(ctx)
-		default:
-			_ = tx.Rollback(ctx)
-		}
-	}()
-
+func (p PostgresScanRepository) UpdateScanConfiguration(ctx context.Context, tx pgx.Tx, scanConfiguration ScanConfiguration) error {
 	args := pgx.NamedArgs{
 		"id":   scanConfiguration.ID,
 		"name": scanConfiguration.Name,
@@ -393,7 +271,7 @@ func (p PostgresScanRepository) UpdateScanConfiguration(ctx context.Context, sca
 
 	row := tx.QueryRow(ctx, "UPDATE scan_configs SET name = @name WHERE id = @id RETURNING *", args)
 	var config ScanConfiguration
-	err = row.Scan(&config.ID, &config.Name)
+	err := row.Scan(&config.ID, &config.Name)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ErrNotFound
@@ -407,27 +285,14 @@ func (p PostgresScanRepository) UpdateScanConfiguration(ctx context.Context, sca
 	return nil
 }
 
-func (p PostgresScanRepository) DeleteScanConfiguration(ctx context.Context, id string) error {
-	tx, err := p.pool.Begin(ctx)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		switch err {
-		case nil:
-			err = tx.Commit(ctx)
-		default:
-			_ = tx.Rollback(ctx)
-		}
-	}()
-
+func (p PostgresScanRepository) DeleteScanConfiguration(ctx context.Context, tx pgx.Tx, id string) error {
 	args := pgx.NamedArgs{
 		"id": id,
 	}
 
 	row := tx.QueryRow(ctx, "DELETE FROM scan_configs WHERE id = @id RETURNING *", args)
 	var config ScanConfiguration
-	err = row.Scan(&config.ID, &config.Name)
+	err := row.Scan(&config.ID, &config.Name)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ErrNotFound
@@ -448,7 +313,6 @@ func (p PostgresScanRepository) DeleteScanConfiguration(ctx context.Context, id 
 		// don't care if there were no rows in the config
 		if errors.Is(err, pgx.ErrNoRows) {
 			// reset error to not trigger rollback
-			err = nil
 			return nil
 		}
 	}
@@ -456,27 +320,14 @@ func (p PostgresScanRepository) DeleteScanConfiguration(ctx context.Context, id 
 	return err
 }
 
-func (p PostgresScanRepository) RemoveScanConfigurationAssets(ctx context.Context, scanConfigID string, assetIDs []string) error {
-	tx, err := p.pool.Begin(ctx)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		switch err {
-		case nil:
-			err = tx.Commit(ctx)
-		default:
-			_ = tx.Rollback(ctx)
-		}
-	}()
-
+func (p PostgresScanRepository) RemoveScanConfigurationAssets(ctx context.Context, tx pgx.Tx, scanConfigID string, assetIDs []string) error {
 	for _, assetID := range assetIDs {
 		args := pgx.NamedArgs{
 			"scan_config_id": scanConfigID,
 			"asset_id":       assetID,
 		}
 
-		_, err = tx.Exec(ctx, "DELETE FROM scan_config_asset_map WHERE scan_config_id = @scan_config_id AND asset_id = @asset_id", args)
+		_, err := tx.Exec(ctx, "DELETE FROM scan_config_asset_map WHERE scan_config_id = @scan_config_id AND asset_id = @asset_id", args)
 		if err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
 				return ErrNotFound
@@ -488,27 +339,14 @@ func (p PostgresScanRepository) RemoveScanConfigurationAssets(ctx context.Contex
 	return nil
 }
 
-func (p PostgresScanRepository) AddScanConfigurationAssets(ctx context.Context, scanConfigID string, assetIDs []string) error {
-	tx, err := p.pool.Begin(ctx)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		switch err {
-		case nil:
-			err = tx.Commit(ctx)
-		default:
-			_ = tx.Rollback(ctx)
-		}
-	}()
-
+func (p PostgresScanRepository) AddScanConfigurationAssets(ctx context.Context, tx pgx.Tx, scanConfigID string, assetIDs []string) error {
 	for _, assetID := range assetIDs {
 		args := pgx.NamedArgs{
 			"scan_config_id": scanConfigID,
 			"asset_id":       assetID,
 		}
 
-		_, err = tx.Exec(ctx, "INSERT INTO scan_config_asset_map (scan_config_id, asset_id) VALUES(@scan_config_id, @asset_id)", args)
+		_, err := tx.Exec(ctx, "INSERT INTO scan_config_asset_map (scan_config_id, asset_id) VALUES(@scan_config_id, @asset_id)", args)
 		if err != nil {
 			return err
 		}
@@ -517,26 +355,12 @@ func (p PostgresScanRepository) AddScanConfigurationAssets(ctx context.Context, 
 	return nil
 }
 
-func (p PostgresScanRepository) ListScans(ctx context.Context) ([]ScanExecution, error) {
-	tx, err := p.pool.Begin(ctx)
-	if err != nil {
-		return []ScanExecution{}, err
-	}
-	defer func() {
-		switch err {
-		case nil:
-			err = tx.Commit(ctx)
-		default:
-			_ = tx.Rollback(ctx)
-		}
-	}()
-
+func (p PostgresScanRepository) ListScans(ctx context.Context, tx pgx.Tx) ([]ScanExecution, error) {
 	rows, err := tx.Query(ctx, `SELECT * FROM scans`)
 	if err != nil {
 		// return empty list if no identities are found
 		if errors.Is(err, pgx.ErrNoRows) {
 			// reset error to not trigger rollback
-			err = nil
 			return []ScanExecution{}, nil
 		}
 		return nil, err
@@ -556,24 +380,11 @@ func (p PostgresScanRepository) ListScans(ctx context.Context) ([]ScanExecution,
 	return scans, nil
 }
 
-func (p PostgresScanRepository) GetScan(ctx context.Context, id string) (*ScanExecution, error) {
-	tx, err := p.pool.Begin(ctx)
-	if err != nil {
-		return nil, err
-	}
-	defer func() {
-		switch err {
-		case nil:
-			err = tx.Commit(ctx)
-		default:
-			_ = tx.Rollback(ctx)
-		}
-	}()
-
+func (p PostgresScanRepository) GetScan(ctx context.Context, tx pgx.Tx, id string) (*ScanExecution, error) {
 	row := tx.QueryRow(ctx, "SELECT * FROM scans WHERE id = $1", id)
 
 	var scan ScanExecution
-	err = row.Scan(&scan.ID, &scan.ScanConfigurationID, &scan.StartTime, &scan.EndTime, &scan.Status, &scan.Type)
+	err := row.Scan(&scan.ID, &scan.ScanConfigurationID, &scan.StartTime, &scan.EndTime, &scan.Status, &scan.Type)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, ErrNotFound
@@ -583,20 +394,7 @@ func (p PostgresScanRepository) GetScan(ctx context.Context, id string) (*ScanEx
 	return &scan, nil
 }
 
-func (p PostgresScanRepository) CreateScan(ctx context.Context, scanRun ScanExecution) error {
-	tx, err := p.pool.Begin(ctx)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		switch err {
-		case nil:
-			err = tx.Commit(ctx)
-		default:
-			_ = tx.Rollback(ctx)
-		}
-	}()
-
+func (p PostgresScanRepository) CreateScan(ctx context.Context, tx pgx.Tx, scanRun ScanExecution) error {
 	args := pgx.NamedArgs{
 		"id":              scanRun.ID,
 		"type":            scanRun.Type,
@@ -606,24 +404,11 @@ func (p PostgresScanRepository) CreateScan(ctx context.Context, scanRun ScanExec
 		"status":          scanRun.Status,
 	}
 
-	_, err = tx.Exec(ctx, "INSERT INTO scans (id, scan_config_id, scan_start_time, scan_end_time, status, type) VALUES(@id, @scan_config_id, @scan_start_time, @scan_end_time, @status, @type)", args)
+	_, err := tx.Exec(ctx, "INSERT INTO scans (id, scan_config_id, scan_start_time, scan_end_time, status, type) VALUES(@id, @scan_config_id, @scan_start_time, @scan_end_time, @status, @type)", args)
 	return err
 }
 
-func (p PostgresScanRepository) UpdateScan(ctx context.Context, scanRun ScanExecution) error {
-	tx, err := p.pool.Begin(ctx)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		switch err {
-		case nil:
-			err = tx.Commit(ctx)
-		default:
-			_ = tx.Rollback(ctx)
-		}
-	}()
-
+func (p PostgresScanRepository) UpdateScan(ctx context.Context, tx pgx.Tx, scanRun ScanExecution) error {
 	args := pgx.NamedArgs{
 		"id":              scanRun.ID,
 		"scan_config_id":  scanRun.ScanConfigurationID,
@@ -634,7 +419,7 @@ func (p PostgresScanRepository) UpdateScan(ctx context.Context, scanRun ScanExec
 
 	row := tx.QueryRow(ctx, "UPDATE scans SET scan_config_id = @scan_config_id, scan_start_time = @scan_start_time, scan_end_time = @scan_end_time, status = @status WHERE id = @id RETURNING *", args)
 	var scan ScanExecution
-	err = row.Scan(&scan.ID, &scan.ScanConfigurationID, &scan.StartTime, &scan.EndTime, &scan.Status, &scan.Type)
+	err := row.Scan(&scan.ID, &scan.ScanConfigurationID, &scan.StartTime, &scan.EndTime, &scan.Status, &scan.Type)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ErrNotFound
@@ -644,26 +429,13 @@ func (p PostgresScanRepository) UpdateScan(ctx context.Context, scanRun ScanExec
 	return nil
 }
 
-func (p PostgresScanRepository) PutAssetDiscoveryResult(ctx context.Context, result ScanAssetDiscoveryResult) error {
-	tx, err := p.pool.Begin(ctx)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		switch err {
-		case nil:
-			err = tx.Commit(ctx)
-		default:
-			_ = tx.Rollback(ctx)
-		}
-	}()
-
+func (p PostgresScanRepository) PutAssetDiscoveryResult(ctx context.Context, tx pgx.Tx, result ScanAssetDiscoveryResult) error {
 	// check if already exists
 	row := tx.QueryRow(ctx, "SELECT COUNT(*) FROM asset_discovery WHERE asset_id = $1 AND port = $2 AND protocol = $3",
 		result.AssetID, result.Port, result.Protocol)
 
 	var count int
-	err = row.Scan(&count)
+	err := row.Scan(&count)
 	if err != nil {
 		return err
 	}
@@ -695,26 +467,12 @@ func (p PostgresScanRepository) PutAssetDiscoveryResult(ctx context.Context, res
 	return nil
 }
 
-func (p PostgresScanRepository) ListAssetDiscoveryResults(ctx context.Context, assetID string) ([]ScanAssetDiscoveryResult, error) {
-	tx, err := p.pool.Begin(ctx)
-	if err != nil {
-		return []ScanAssetDiscoveryResult{}, err
-	}
-	defer func() {
-		switch err {
-		case nil:
-			err = tx.Commit(ctx)
-		default:
-			_ = tx.Rollback(ctx)
-		}
-	}()
-
+func (p PostgresScanRepository) ListAssetDiscoveryResults(ctx context.Context, tx pgx.Tx, assetID string) ([]ScanAssetDiscoveryResult, error) {
 	rows, err := tx.Query(ctx, `SELECT * FROM asset_discovery WHERE asset_id = $1`, assetID)
 	if err != nil {
 		// return empty list if no identities are found
 		if errors.Is(err, pgx.ErrNoRows) {
 			// reset error to not trigger rollback
-			err = nil
 			return []ScanAssetDiscoveryResult{}, nil
 		}
 		return nil, err
@@ -735,9 +493,8 @@ func (p PostgresScanRepository) ListAssetDiscoveryResults(ctx context.Context, a
 	return discoveryResults, nil
 }
 
-func NewPostgresScanRepository(pool *pgxpool.Pool) *PostgresScanRepository {
+func NewPostgresScanRepository() *PostgresScanRepository {
 	return &PostgresScanRepository{
 		logger: logging.GetLogger(logging.DataAccess),
-		pool:   pool,
 	}
 }

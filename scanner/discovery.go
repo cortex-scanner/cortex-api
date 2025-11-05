@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/projectdiscovery/naabu/v2/pkg/protocol"
 	"github.com/projectdiscovery/naabu/v2/pkg/result"
 	"github.com/projectdiscovery/naabu/v2/pkg/runner"
@@ -16,6 +17,7 @@ import (
 type DiscoveryScanner struct {
 	logger *slog.Logger
 	repo   repository.ScanRepository
+	pool   *pgxpool.Pool
 }
 
 func (d DiscoveryScanner) Scan(ctx context.Context, scan repository.ScanExecution, config repository.ScanConfiguration) error {
@@ -62,6 +64,19 @@ func (d DiscoveryScanner) Scan(ctx context.Context, scan repository.ScanExecutio
 	d.logger.InfoContext(ctx, "finished discovery scan", logging.FieldScanID, scan.ID)
 	d.logger.InfoContext(ctx, fmt.Sprintf("found %d open ports", len(results)))
 
+	tx, err := d.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		switch err {
+		case nil:
+			err = tx.Commit(ctx)
+		default:
+			_ = tx.Rollback(ctx)
+		}
+	}()
+
 	// add changes to database
 	now := time.Now()
 	for _, naabuResult := range results {
@@ -79,7 +94,7 @@ func (d DiscoveryScanner) Scan(ctx context.Context, scan repository.ScanExecutio
 				LastSeen:  now,
 			}
 
-			err = d.repo.PutAssetDiscoveryResult(ctx, discoveryResult)
+			err = d.repo.PutAssetDiscoveryResult(ctx, tx, discoveryResult)
 			if err != nil {
 				d.logger.ErrorContext(ctx, "failed to put asset discovery result",
 					logging.FieldScanID, scan.ID, logging.FieldAssetID, discoveryResult.AssetID, logging.FieldError, err)
@@ -91,7 +106,7 @@ func (d DiscoveryScanner) Scan(ctx context.Context, scan repository.ScanExecutio
 	// update scan status
 	scan.Status = repository.ScanStatusComplete
 	scan.EndTime = &now
-	err = d.repo.UpdateScan(ctx, scan)
+	err = d.repo.UpdateScan(ctx, tx, scan)
 	if err != nil {
 		d.logger.ErrorContext(ctx, "failed to update scan",
 			logging.FieldScanID, scan.ID,
@@ -111,9 +126,10 @@ func (d DiscoveryScanner) findAssetID(assets []repository.ScanAsset, endpoint st
 	return ""
 }
 
-func NewDiscoveryScanner(repo repository.ScanRepository) Scanner {
+func NewDiscoveryScanner(repo repository.ScanRepository, pool *pgxpool.Pool) Scanner {
 	return DiscoveryScanner{
 		logger: logging.GetLogger(logging.Scan),
 		repo:   repo,
+		pool:   pool,
 	}
 }

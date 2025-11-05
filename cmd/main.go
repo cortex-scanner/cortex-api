@@ -65,8 +65,8 @@ func main() {
 	pool := setupDatabase(appConfig, logger)
 
 	// setup services
-	scanRepo := repository.NewPostgresScanRepository(pool)
-	scanService := service.NewScanService(scanRepo)
+	scanRepo := repository.NewPostgresScanRepository()
+	scanService := service.NewScanService(scanRepo, pool)
 
 	// start api server
 	serverOptions := ServerOptions{
