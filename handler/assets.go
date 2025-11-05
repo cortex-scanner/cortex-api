@@ -29,27 +29,60 @@ func NewAssetHandler(scanService service.ScanService) *AssetHandler {
 }
 
 func (h AssetHandler) HandleList(w http.ResponseWriter, r *http.Request) error {
-	assets, err := h.scanService.ListAssets(r.Context())
-	if err != nil {
-		return WrapError(err)
+	statsRequested := r.URL.Query().Get("stats") == "true"
+
+	if statsRequested {
+		// respond with stats
+		assets, err := h.scanService.ListAssetsWithStats(r.Context())
+		if err != nil {
+			return WrapError(err)
+		}
+
+		if err = RespondMany(w, r, assets); err != nil {
+			return WrapError(err)
+		}
+
+	} else {
+		// plain asset
+		assets, err := h.scanService.ListAssets(r.Context())
+		if err != nil {
+			return WrapError(err)
+		}
+
+		if err = RespondMany(w, r, assets); err != nil {
+			return WrapError(err)
+		}
 	}
 
-	if err = RespondMany(w, r, assets); err != nil {
-		return WrapError(err)
-	}
 	return nil
 }
 
 func (h AssetHandler) HandleGet(w http.ResponseWriter, r *http.Request) error {
 	id := r.PathValue("id")
-	asset, err := h.scanService.GetAsset(r.Context(), id)
-	if err != nil {
-		return WrapError(err)
+	statsRequested := r.URL.Query().Get("stats") == "true"
+
+	if statsRequested {
+		// respond with stats
+		asset, err := h.scanService.GetAssetWithStats(r.Context(), id)
+		if err != nil {
+			return WrapError(err)
+		}
+
+		if err = RespondOne(w, r, asset); err != nil {
+			return WrapError(err)
+		}
+	} else {
+		// plain asset
+		asset, err := h.scanService.GetAsset(r.Context(), id)
+		if err != nil {
+			return WrapError(err)
+		}
+
+		if err = RespondOne(w, r, asset); err != nil {
+			return WrapError(err)
+		}
 	}
 
-	if err = RespondOne(w, r, asset); err != nil {
-		return WrapError(err)
-	}
 	return nil
 }
 

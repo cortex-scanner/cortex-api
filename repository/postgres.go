@@ -5,6 +5,7 @@ import (
 	"cortex/logging"
 	"errors"
 	"log/slog"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -491,6 +492,35 @@ func (p PostgresScanRepository) ListAssetDiscoveryResults(ctx context.Context, t
 	}
 
 	return discoveryResults, nil
+}
+
+func (p PostgresScanRepository) GetAssetStats(ctx context.Context, tx pgx.Tx, assetID string) (*ScanAssetStats, error) {
+	// get number of discovered ports
+	row := tx.QueryRow(ctx, "SELECT COUNT(*) FROM asset_discovery WHERE asset_id = $1", assetID)
+	var portCount int
+	err := row.Scan(&portCount)
+	if err != nil {
+		return nil, err
+	}
+
+	// find timestamp of last discovery scan
+	row = tx.QueryRow(ctx, `
+		SELECT s.scan_end_time
+		FROM scans s
+				 INNER JOIN scan_config_asset_map scam ON s.scan_config_id = scam.scan_config_id
+		WHERE scam.asset_id = $1
+		  AND s.type = 'discovery'
+		ORDER BY s.scan_start_time DESC
+		LIMIT 1;
+    `, assetID)
+	var lastDiscoveryTime time.Time
+	err = row.Scan(&lastDiscoveryTime)
+
+	stats := ScanAssetStats{
+		DiscoveredPortsCount: portCount,
+		LastDiscovery:        lastDiscoveryTime,
+	}
+	return &stats, nil
 }
 
 func NewPostgresScanRepository() *PostgresScanRepository {

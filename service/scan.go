@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -29,7 +30,9 @@ type ScanService interface {
 	DeleteScanConfig(ctx context.Context, id string) (*repository.ScanConfiguration, error)
 
 	ListAssets(ctx context.Context) ([]repository.ScanAsset, error)
+	ListAssetsWithStats(ctx context.Context) ([]repository.ScanAssetWithStats, error)
 	GetAsset(ctx context.Context, id string) (*repository.ScanAsset, error)
+	GetAssetWithStats(ctx context.Context, id string) (*repository.ScanAssetWithStats, error)
 	CreateAsset(ctx context.Context, endpoint string) (*repository.ScanAsset, error)
 	DeleteAsset(ctx context.Context, id string) (*repository.ScanAsset, error)
 	UpdateAsset(ctx context.Context, id string, newEndpoint string) (*repository.ScanAsset, error)
@@ -267,6 +270,14 @@ func (s scanService) DeleteScanConfig(ctx context.Context, id string) (*reposito
 	return config, nil
 }
 
+func (s scanService) listAssets(ctx context.Context, tx pgx.Tx) ([]repository.ScanAsset, error) {
+	assets, err := s.repo.ListScanAssets(ctx, tx)
+	if err != nil {
+		return nil, err
+	}
+	return assets, nil
+}
+
 func (s scanService) ListAssets(ctx context.Context) ([]repository.ScanAsset, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -281,12 +292,54 @@ func (s scanService) ListAssets(ctx context.Context) ([]repository.ScanAsset, er
 		}
 	}()
 
-	assets, err := s.repo.ListScanAssets(ctx, tx)
+	assets, err := s.listAssets(ctx, tx)
 	if err != nil {
 		s.logger.ErrorContext(ctx, "failed to list scan assets", logging.FieldError, err)
 		return nil, err
 	}
+
 	return assets, nil
+}
+
+func (s scanService) ListAssetsWithStats(ctx context.Context) ([]repository.ScanAssetWithStats, error) {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		switch err {
+		case nil:
+			err = tx.Commit(ctx)
+		default:
+			_ = tx.Rollback(ctx)
+		}
+	}()
+
+	assets, err := s.listAssets(ctx, tx)
+	if err != nil {
+		s.logger.ErrorContext(ctx, "failed to list scan assets", logging.FieldError, err)
+		return nil, err
+	}
+
+	// augment asset with stats
+	var assetsWithStats []repository.ScanAssetWithStats
+	for _, a := range assets {
+		assetStats, err := s.repo.GetAssetStats(ctx, tx, a.ID)
+		if err != nil {
+			s.logger.ErrorContext(ctx, "failed to get asset stats", logging.FieldError, err)
+			return nil, err
+		}
+
+		stat := repository.ScanAssetWithStats{
+			ID:       a.ID,
+			Endpoint: a.Endpoint,
+			Stats:    *assetStats,
+		}
+
+		assetsWithStats = append(assetsWithStats, stat)
+	}
+
+	return assetsWithStats, nil
 }
 
 func (s scanService) GetAsset(ctx context.Context, id string) (*repository.ScanAsset, error) {
@@ -310,6 +363,40 @@ func (s scanService) GetAsset(ctx context.Context, id string) (*repository.ScanA
 		return nil, err
 	}
 	return asset, nil
+}
+
+func (s scanService) GetAssetWithStats(ctx context.Context, id string) (*repository.ScanAssetWithStats, error) {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		switch err {
+		case nil:
+			err = tx.Commit(ctx)
+		default:
+			_ = tx.Rollback(ctx)
+		}
+	}()
+
+	asset, err := s.repo.GetScanAsset(ctx, tx, id)
+	if err != nil {
+		s.logger.ErrorContext(ctx, "failed to get scan asset",
+			logging.FieldAssetID, id, logging.FieldError, err)
+		return nil, err
+	}
+
+	assetStats, err := s.repo.GetAssetStats(ctx, tx, asset.ID)
+	if err != nil {
+		s.logger.ErrorContext(ctx, "failed to get asset stats", logging.FieldError, err)
+		return nil, err
+	}
+
+	return &repository.ScanAssetWithStats{
+		ID:       asset.ID,
+		Endpoint: asset.Endpoint,
+		Stats:    *assetStats,
+	}, nil
 }
 
 func (s scanService) CreateAsset(ctx context.Context, endpoint string) (*repository.ScanAsset, error) {

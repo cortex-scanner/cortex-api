@@ -5,9 +5,13 @@ meta {
 }
 
 get {
-  url: {{baseUrl}}/assets
+  url: {{baseUrl}}/assets?stats=true
   body: none
   auth: inherit
+}
+
+params:query {
+  stats: true
 }
 
 settings {

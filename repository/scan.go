@@ -14,6 +14,27 @@ type ScanAsset struct {
 	Endpoint string `json:"endpoint"`
 }
 
+type ScanAssetStats struct {
+	DiscoveredPortsCount int       `json:"discoveredPortsCount"`
+	LastDiscovery        time.Time `json:"lastDiscovery"`
+}
+
+func (s ScanAssetStats) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		DiscoveredPortsCount int   `json:"discoveredPortsCount"`
+		LastDiscovery        int64 `json:"lastDiscovery"`
+	}{
+		DiscoveredPortsCount: s.DiscoveredPortsCount,
+		LastDiscovery:        s.LastDiscovery.Unix(),
+	})
+}
+
+type ScanAssetWithStats struct {
+	ID       string         `json:"id"`
+	Endpoint string         `json:"endpoint"`
+	Stats    ScanAssetStats `json:"stats"`
+}
+
 type ScanProtocol string
 
 const (
@@ -130,6 +151,8 @@ type ScanAssetRepository interface {
 
 	PutAssetDiscoveryResult(ctx context.Context, tx pgx.Tx, result ScanAssetDiscoveryResult) error
 	ListAssetDiscoveryResults(ctx context.Context, tx pgx.Tx, assetID string) ([]ScanAssetDiscoveryResult, error)
+
+	GetAssetStats(ctx context.Context, tx pgx.Tx, assetID string) (*ScanAssetStats, error)
 }
 
 // ScanConfigurationRepository defines methods to manage scan configurations in a repository.
