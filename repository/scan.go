@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"encoding/json"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -28,6 +29,25 @@ type ScanAssetDiscoveryResult struct {
 	Protocol  ScanProtocol `json:"protocol"`
 	FirstSeen time.Time    `json:"firstSeen"`
 	LastSeen  time.Time    `json:"lastSeen"`
+}
+
+func (d ScanAssetDiscoveryResult) MarshalJSON() ([]byte, error) {
+	// marshal with time.Time to unix
+	data := struct {
+		AssetID   string       `json:"assetId"`
+		Port      int          `json:"port"`
+		Protocol  ScanProtocol `json:"protocol"`
+		FirstSeen int64        `json:"firstSeen"`
+		LastSeen  int64        `json:"lastSeen"`
+	}{
+		AssetID:   d.AssetID,
+		Port:      d.Port,
+		Protocol:  d.Protocol,
+		FirstSeen: d.FirstSeen.Unix(),
+		LastSeen:  d.LastSeen.Unix(),
+	}
+
+	return json.Marshal(data)
 }
 
 // ScanConfiguration defines a scan configuration applied to a scan
@@ -63,6 +83,36 @@ type ScanExecution struct {
 	Status              ScanStatus `json:"status"`
 	StartTime           *time.Time `json:"startTime"`
 	EndTime             *time.Time `json:"endTime"`
+}
+
+func (s ScanExecution) MarshalJSON() ([]byte, error) {
+	startTime := int64(0)
+	if s.StartTime != nil {
+		startTime = s.StartTime.Unix()
+	}
+
+	endTime := int64(0)
+	if s.EndTime != nil {
+		endTime = s.EndTime.Unix()
+	}
+
+	data := struct {
+		ID                  string     `json:"id"`
+		ScanConfigurationID string     `json:"scanConfigurationId"`
+		Type                ScanType   `json:"type"`
+		Status              ScanStatus `json:"status"`
+		StartTime           int64      `json:"startTime"`
+		EndTime             int64      `json:"endTime"`
+	}{
+		ID:                  s.ID,
+		ScanConfigurationID: s.ScanConfigurationID,
+		Type:                s.Type,
+		Status:              s.Status,
+		StartTime:           startTime,
+		EndTime:             endTime,
+	}
+
+	return json.Marshal(data)
 }
 
 // ScanAssetRepository defines an interface for managing and interacting with scan asset data in a repository.
