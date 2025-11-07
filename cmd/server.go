@@ -55,6 +55,7 @@ func (s *Server) Start() {
 	// register middleware
 	requestIDMiddleware := middleware.NewUUIDv4RequestIDMiddleWare()
 	requestLoggerMiddleware := middleware.NewRequestLoggerMiddleware()
+	authNMiddleware := middleware.NewAuthenticationMiddleware(s.authService)
 
 	s.router.Use(cors.New(corsOptions).Handler)
 	s.router.Use(middleware.SecurityHeaders())
@@ -64,38 +65,51 @@ func (s *Server) Start() {
 	s.router.Use(chiMiddleware.AllowContentType("application/json"))
 	s.router.Use(chiMiddleware.Recoverer)
 
-	// register public routes
-	s.router.Get("/health", handler.Make(handler.HandleHealth))
-
-	// asset routes
+	// setup handlers
 	assetHandler := handler.NewAssetHandler(s.scanService)
-	s.router.Get("/assets", handler.Make(assetHandler.HandleList))
-	s.router.Get("/assets/{id}", handler.Make(assetHandler.HandleGet))
-	s.router.Post("/assets", handler.Make(assetHandler.HandleCreate))
-	s.router.Put("/assets/{id}", handler.Make(assetHandler.HandleUpdate))
-	s.router.Delete("/assets/{id}", handler.Make(assetHandler.HandleDelete))
-	s.router.Get("/assets/{id}/discovery", handler.Make(assetHandler.HandleListAssetDiscoveryResults))
-
-	// scan config routes
 	scanConfigHandler := handler.NewScanConfigHandler(s.scanService)
-	s.router.Get("/scan-configs", handler.Make(scanConfigHandler.HandleList))
-	s.router.Get("/scan-configs/{id}", handler.Make(scanConfigHandler.HandleGet))
-	s.router.Post("/scan-configs", handler.Make(scanConfigHandler.HandleCreate))
-	s.router.Patch("/scan-configs/{id}/assets", handler.Make(scanConfigHandler.HandleUpdateAssets))
-	s.router.Put("/scan-configs/{id}", handler.Make(scanConfigHandler.HandleUpdate))
-	s.router.Delete("/scan-configs/{id}", handler.Make(scanConfigHandler.HandleDelete))
-
-	// scan routes
 	scanHandler := handler.NewScanHandler(s.scanService)
-	s.router.Get("/scans", handler.Make(scanHandler.HandleList))
-	s.router.Get("/scans/{id}", handler.Make(scanHandler.HandleGet))
-	s.router.Post("/scans", handler.Make(scanHandler.HandleRun))
-	s.router.Patch("/scans/{id}", handler.Make(scanHandler.HandleUpdate))
-
-	// user and authentication routes
 	userHandler := handler.NewUserHandler(s.authService)
-	s.router.Get("/users", handler.Make(userHandler.HandleListUsers))
-	s.router.Get("/users/{id}", handler.Make(userHandler.HandleGetUser))
+	authHandler := handler.NewAuthHandler(s.authService)
+
+	// register public routes
+	s.router.Group(func(r chi.Router) {
+		r.Use(requestLoggerMiddleware.OnRequest)
+
+		r.Get("/health", handler.Make(handler.HandleHealth))
+		r.Post("/auth", handler.Make(authHandler.HandleUsernamePasswordLogin))
+	})
+
+	// authenticated routes
+	s.router.Group(func(r chi.Router) {
+		r.Use(authNMiddleware.OnRequest)
+
+		// asset routes
+		r.Get("/assets", handler.Make(assetHandler.HandleList))
+		r.Get("/assets/{id}", handler.Make(assetHandler.HandleGet))
+		r.Post("/assets", handler.Make(assetHandler.HandleCreate))
+		r.Put("/assets/{id}", handler.Make(assetHandler.HandleUpdate))
+		r.Delete("/assets/{id}", handler.Make(assetHandler.HandleDelete))
+		r.Get("/assets/{id}/discovery", handler.Make(assetHandler.HandleListAssetDiscoveryResults))
+
+		// scan config routes
+		r.Get("/scan-configs", handler.Make(scanConfigHandler.HandleList))
+		r.Get("/scan-configs/{id}", handler.Make(scanConfigHandler.HandleGet))
+		r.Post("/scan-configs", handler.Make(scanConfigHandler.HandleCreate))
+		r.Patch("/scan-configs/{id}/assets", handler.Make(scanConfigHandler.HandleUpdateAssets))
+		r.Put("/scan-configs/{id}", handler.Make(scanConfigHandler.HandleUpdate))
+		r.Delete("/scan-configs/{id}", handler.Make(scanConfigHandler.HandleDelete))
+
+		// scan routes
+		r.Get("/scans", handler.Make(scanHandler.HandleList))
+		r.Get("/scans/{id}", handler.Make(scanHandler.HandleGet))
+		r.Post("/scans", handler.Make(scanHandler.HandleRun))
+		r.Patch("/scans/{id}", handler.Make(scanHandler.HandleUpdate))
+
+		// users
+		r.Get("/users", handler.Make(userHandler.HandleListUsers))
+		r.Get("/users/{id}", handler.Make(userHandler.HandleGetUser))
+	})
 
 	// setup default handlers
 	s.router.NotFound(func(w http.ResponseWriter, r *http.Request) {

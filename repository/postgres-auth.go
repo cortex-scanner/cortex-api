@@ -34,7 +34,7 @@ func (p PostgresAuthRepository) GetSession(ctx context.Context, tx pgx.Tx, token
 	row := tx.QueryRow(ctx, "SELECT * FROM sessions WHERE token = $1", token)
 
 	var session Session
-	err := row.Scan(&session.UserID, &session.Token, &session.UserAgent, &session.SourceIP, &session.Revoked, &session.CreatedAt, &session.ExpiresAt)
+	err := row.Scan(&session.Token, &session.UserID, &session.CreatedAt, &session.ExpiresAt, &session.SourceIP, &session.Revoked, &session.UserAgent)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, ErrNotFound

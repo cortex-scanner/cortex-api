@@ -100,6 +100,12 @@ func (s authService) ValidateSession(ctx context.Context, token string) (*reposi
 		return nil, err
 	}
 
+	// check if session is expired
+	if session.ExpiresAt.Before(time.Now()) {
+		s.logger.DebugContext(ctx, fmt.Sprintf("session token %s expired", token))
+		return nil, ErrUnauthenticated
+	}
+
 	user, err := s.repo.GetUser(ctx, tx, session.UserID)
 	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
