@@ -66,13 +66,17 @@ func main() {
 
 	// setup services
 	scanRepo := repository.NewPostgresScanRepository()
+	authRepo := repository.NewPostgresAuthRepository()
+
 	scanService := service.NewScanService(scanRepo, pool)
+	authService := service.NewAuthService(authRepo, pool)
 
 	// start api server
 	serverOptions := ServerOptions{
 		ListenAddress: appConfig.ListenAddress,
 		CorsOrigin:    appConfig.CORSOrigin,
 		ScanService:   scanService,
+		AuthService:   authService,
 	}
 
 	logger.Debug("allowed CORS origin: " + appConfig.CORSOrigin)

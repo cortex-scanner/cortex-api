@@ -12,6 +12,7 @@ const (
 	FieldScanConfigID string = "scanConfigId"
 	FieldAssetID      string = "assetId"
 	FieldScanID       string = "scanId"
+	FieldUserID       string = "userId"
 )
 
 type ContextHandler struct {

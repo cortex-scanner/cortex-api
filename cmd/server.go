@@ -23,6 +23,7 @@ type ServerOptions struct {
 	ListenAddress string
 	CorsOrigin    string
 	ScanService   service.ScanService
+	AuthService   service.AuthService
 }
 
 type Server struct {
@@ -30,6 +31,7 @@ type Server struct {
 	router        chi.Router
 	corsOrigin    string
 	scanService   service.ScanService
+	authService   service.AuthService
 }
 
 func NewServer(opts ServerOptions) *Server {
@@ -38,6 +40,7 @@ func NewServer(opts ServerOptions) *Server {
 		router:        chi.NewRouter(),
 		corsOrigin:    opts.CorsOrigin,
 		scanService:   opts.ScanService,
+		authService:   opts.AuthService,
 	}
 }
 
@@ -88,6 +91,11 @@ func (s *Server) Start() {
 	s.router.Get("/scans/{id}", handler.Make(scanHandler.HandleGet))
 	s.router.Post("/scans", handler.Make(scanHandler.HandleRun))
 	s.router.Patch("/scans/{id}", handler.Make(scanHandler.HandleUpdate))
+
+	// user and authentication routes
+	userHandler := handler.NewUserHandler(s.authService)
+	s.router.Get("/users", handler.Make(userHandler.HandleListUsers))
+	s.router.Get("/users/{id}", handler.Make(userHandler.HandleGetUser))
 
 	// setup default handlers
 	s.router.NotFound(func(w http.ResponseWriter, r *http.Request) {
