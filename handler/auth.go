@@ -1,18 +1,17 @@
 package handler
 
 import (
+	cortexContext "cortex/context"
+	"cortex/repository"
 	"cortex/service"
-	"net/http"
-
 	"github.com/go-playground/validator/v10"
+	"net/http"
 )
 
 type AuthHandler struct {
 	authService service.AuthService
 	validate    *validator.Validate
 }
-
-const sessionCookieName = "SESSID"
 
 func NewAuthHandler(authService service.AuthService) *AuthHandler {
 	return &AuthHandler{
@@ -24,6 +23,11 @@ func NewAuthHandler(authService service.AuthService) *AuthHandler {
 type usernamePasswordLoginRequestBody struct {
 	Username string `json:"username" validate:"required"`
 	Password string `json:"password" validate:"required"`
+}
+
+type tokenResponse struct {
+	Token string           `json:"token"`
+	User  *repository.User `json:"user"`
 }
 
 func (h AuthHandler) HandleUsernamePasswordLogin(w http.ResponseWriter, r *http.Request) error {
@@ -48,29 +52,42 @@ func (h AuthHandler) HandleUsernamePasswordLogin(w http.ResponseWriter, r *http.
 		src = r.Header.Get("X-Forwarded-For")
 	}
 
-	sessionOpt := service.CreateSessionOptions{
+	tokenOptions := service.CreateTokenOptions{
 		UserID:    user.ID,
 		UserAgent: r.UserAgent(),
 		SourceIP:  src,
 	}
-	session, err := h.authService.CreateSession(r.Context(), sessionOpt)
+
+	_, tokenString, err := h.authService.CreateSessionToken(r.Context(), tokenOptions)
 	if err != nil {
 		return WrapError(err)
 	}
 
-	cookie := http.Cookie{
-		Name:     sessionCookieName,
-		Value:    session.Token,
-		Path:     "/",
-		HttpOnly: true,
-		// TODO: make this configurable
-		Secure:  false,
-		Expires: session.ExpiresAt,
+	response := tokenResponse{
+		Token: tokenString,
+		User:  user,
 	}
-	http.SetCookie(w, &cookie)
+
+	if err = RespondOne(w, r, response); err != nil {
+		return WrapError(err)
+	}
+	return nil
+}
+
+func (h AuthHandler) HandleValidateToken(w http.ResponseWriter, r *http.Request) error {
+	userInfo, err := cortexContext.UserInfo(r.Context())
+	if err != nil {
+		return WrapError(err)
+	}
+
+	user, err := h.authService.GetUser(r.Context(), userInfo.UserID)
+	if err != nil {
+		return WrapError(err)
+	}
 
 	if err = RespondOne(w, r, user); err != nil {
 		return WrapError(err)
 	}
+
 	return nil
 }

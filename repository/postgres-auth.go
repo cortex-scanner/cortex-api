@@ -13,45 +13,46 @@ type PostgresAuthRepository struct {
 	logger *slog.Logger
 }
 
-func (p PostgresAuthRepository) CreateSession(ctx context.Context, tx pgx.Tx, session *Session) error {
+func (p PostgresAuthRepository) StoreToken(ctx context.Context, tx pgx.Tx, token *AuthToken) error {
 	args := pgx.NamedArgs{
-		"user_id":    session.UserID,
-		"token":      session.Token,
-		"user_agent": session.UserAgent,
-		"source_ip":  session.SourceIP,
-		"revoked":    session.Revoked,
-		"created_at": session.CreatedAt,
-		"expires_at": session.ExpiresAt,
+		"id":         token.ID,
+		"user_id":    token.UserID,
+		"hash":       token.Hash,
+		"user_agent": token.UserAgent,
+		"source_ip":  token.SourceIP,
+		"revoked":    token.Revoked,
+		"created_at": token.CreatedAt,
+		"expires_at": token.ExpiresAt,
 	}
 
-	_, err := tx.Exec(ctx, `INSERT INTO sessions (user_id, token, user_agent, source_ip, revoked, created_at, expires_at) 
-								VALUES(@user_id, @token, @user_agent, @source_ip, @revoked, @created_at, @expires_at)`, args)
+	_, err := tx.Exec(ctx, `INSERT INTO tokens (id, user_id, hash, user_agent, source_ip, revoked, created_at, expires_at) 
+								VALUES(@id, @user_id, @hash, @user_agent, @source_ip, @revoked, @created_at, @expires_at)`, args)
 
 	return err
 }
 
-func (p PostgresAuthRepository) GetSession(ctx context.Context, tx pgx.Tx, token string) (*Session, error) {
-	row := tx.QueryRow(ctx, "SELECT * FROM sessions WHERE token = $1", token)
+func (p PostgresAuthRepository) GetToken(ctx context.Context, tx pgx.Tx, tokenId string) (*AuthToken, error) {
+	row := tx.QueryRow(ctx, "SELECT * FROM tokens WHERE id = $1", tokenId)
 
-	var session Session
-	err := row.Scan(&session.Token, &session.UserID, &session.CreatedAt, &session.ExpiresAt, &session.SourceIP, &session.Revoked, &session.UserAgent)
+	var token AuthToken
+	err := row.Scan(&token.ID, &token.Hash, &token.UserID, &token.CreatedAt, &token.ExpiresAt, &token.SourceIP, &token.Revoked, &token.UserAgent)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, ErrNotFound
 		}
 		return nil, err
 	}
-	return &session, nil
+	return &token, nil
 }
 
-func (p PostgresAuthRepository) DeleteSession(ctx context.Context, tx pgx.Tx, token string) error {
+func (p PostgresAuthRepository) DeleteToken(ctx context.Context, tx pgx.Tx, tokenId string) error {
 	args := pgx.NamedArgs{
-		"token": token,
+		"id": tokenId,
 	}
 
-	row := tx.QueryRow(ctx, `UPDATE sessions SET revoked=true WHERE token=@token`, args)
-	var session Session
-	err := row.Scan(&session.UserID, &session.Token, &session.UserAgent, &session.SourceIP, &session.Revoked, &session.CreatedAt, &session.ExpiresAt)
+	row := tx.QueryRow(ctx, `UPDATE tokens SET revoked=true WHERE id=@id`, args)
+	var token AuthToken
+	err := row.Scan(&token.ID, &token.Hash, &token.UserID, &token.CreatedAt, &token.ExpiresAt, &token.SourceIP, &token.Revoked, &token.UserAgent)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ErrNotFound

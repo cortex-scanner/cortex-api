@@ -13,9 +13,9 @@ const (
 )
 
 type UserInfoData struct {
-	UserID       string
-	Username     string
-	SessionToken string
+	UserID   string
+	Username string
+	TokenID  string
 }
 
 var ErrNoUserInfo = errors.New("no user info in context")

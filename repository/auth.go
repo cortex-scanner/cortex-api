@@ -42,9 +42,10 @@ func (u User) MarshalJSON() ([]byte, error) {
 	})
 }
 
-type Session struct {
+type AuthToken struct {
+	ID        string    `json:"id"`
+	Hash      string    `json:"hash"`
 	UserID    string    `json:"userId"`
-	Token     string    `json:"token"`
 	UserAgent string    `json:"userAgent"`
 	SourceIP  string    `json:"ip"`
 	Revoked   bool      `json:"revoked"`
@@ -52,10 +53,10 @@ type Session struct {
 	ExpiresAt time.Time `json:"expiresAt"`
 }
 
-func (s Session) MarshalJSON() ([]byte, error) {
+func (s AuthToken) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
+		ID        string `json:"id"`
 		UserID    string `json:"userId"`
-		Token     string `json:"token"`
 		UserAgent string `json:"userAgent"`
 		SourceIP  string `json:"ip"`
 		Revoked   bool   `json:"revoked"`
@@ -63,7 +64,6 @@ func (s Session) MarshalJSON() ([]byte, error) {
 		ExpiresAt int64  `json:"expiresAt"`
 	}{
 		UserID:    s.UserID,
-		Token:     s.Token,
 		UserAgent: s.UserAgent,
 		SourceIP:  s.SourceIP,
 		Revoked:   s.Revoked,
@@ -78,13 +78,13 @@ type UserRepository interface {
 	GetUserByUsername(ctx context.Context, tx pgx.Tx, username string) (*User, error)
 }
 
-type SessionRepository interface {
-	CreateSession(ctx context.Context, tx pgx.Tx, session *Session) error
-	GetSession(ctx context.Context, tx pgx.Tx, token string) (*Session, error)
-	DeleteSession(ctx context.Context, tx pgx.Tx, token string) error
+type TokenRepository interface {
+	StoreToken(ctx context.Context, tx pgx.Tx, token *AuthToken) error
+	GetToken(ctx context.Context, tx pgx.Tx, id string) (*AuthToken, error)
+	DeleteToken(ctx context.Context, tx pgx.Tx, tokenId string) error
 }
 
 type AuthRepository interface {
 	UserRepository
-	SessionRepository
+	TokenRepository
 }

@@ -4,6 +4,7 @@
     <file url="file://$APPLICATION_CONFIG_DIR$/consoles/db/4855647b-564e-4294-82f6-658d017d55a4/console.sql" value="4855647b-564e-4294-82f6-658d017d55a4" />
     <file url="file://$APPLICATION_CONFIG_DIR$/consoles/db/4855647b-564e-4294-82f6-658d017d55a4/console_1.sql" value="4855647b-564e-4294-82f6-658d017d55a4" />
     <file url="file://$APPLICATION_CONFIG_DIR$/consoles/db/4855647b-564e-4294-82f6-658d017d55a4/console_2.sql" value="4855647b-564e-4294-82f6-658d017d55a4" />
+    <file url="file://$APPLICATION_CONFIG_DIR$/consoles/db/4855647b-564e-4294-82f6-658d017d55a4/console_5.sql" value="4855647b-564e-4294-82f6-658d017d55a4" />
     <file url="file://$PROJECT_DIR$/database/migrations/20251101075421_init.down.sql" value="4855647b-564e-4294-82f6-658d017d55a4" />
     <file url="file://$PROJECT_DIR$/database/migrations/20251101075421_init.up.sql" value="4855647b-564e-4294-82f6-658d017d55a4" />
     <file url="file://$PROJECT_DIR$/repository/postgres.go" value="4855647b-564e-4294-82f6-658d017d55a4" />

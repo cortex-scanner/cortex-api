@@ -49,7 +49,8 @@ func (s *Server) Start() {
 
 	corsOptions := cors.Options{
 		AllowedOrigins: []string{s.corsOrigin},
-		AllowedMethods: []string{"GET", "POST", "PATCH", "DELETE"},
+		AllowedMethods: []string{"GET", "POST", "PATCH", "DELETE", "OPTIONS"},
+		AllowedHeaders: []string{"Authorization", "Content-Type"},
 	}
 
 	// register middleware
@@ -73,12 +74,8 @@ func (s *Server) Start() {
 	authHandler := handler.NewAuthHandler(s.authService)
 
 	// register public routes
-	s.router.Group(func(r chi.Router) {
-		r.Use(requestLoggerMiddleware.OnRequest)
-
-		r.Get("/health", handler.Make(handler.HandleHealth))
-		r.Post("/auth", handler.Make(authHandler.HandleUsernamePasswordLogin))
-	})
+	s.router.Get("/health", handler.Make(handler.HandleHealth))
+	s.router.Post("/auth", handler.Make(authHandler.HandleUsernamePasswordLogin))
 
 	// authenticated routes
 	s.router.Group(func(r chi.Router) {
@@ -109,6 +106,9 @@ func (s *Server) Start() {
 		// users
 		r.Get("/users", handler.Make(userHandler.HandleListUsers))
 		r.Get("/users/{id}", handler.Make(userHandler.HandleGetUser))
+
+		// auth
+		r.Get("/auth", handler.Make(authHandler.HandleValidateToken))
 	})
 
 	// setup default handlers

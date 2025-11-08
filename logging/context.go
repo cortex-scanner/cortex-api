@@ -3,7 +3,6 @@ package logging
 import (
 	"context"
 	cortexContext "cortex/context"
-	"fmt"
 	"log/slog"
 )
 
@@ -15,7 +14,7 @@ const (
 	FieldScanID       string = "scanId"
 	FieldUserID       string = "userId"
 	FieldUsername     string = "username"
-	FieldSessionToken string = "session"
+	FieldTokenID      string = "tokenId"
 )
 
 type ContextHandler struct {
@@ -28,14 +27,11 @@ func (h ContextHandler) Handle(ctx context.Context, r slog.Record) error {
 	}
 
 	if val, ok := ctx.Value(cortexContext.KeyUserInfo).(cortexContext.UserInfoData); ok {
-		fmt.Println("user info", val)
 		r.AddAttrs(
 			slog.String(FieldUserID, val.UserID),
 			slog.String(FieldUsername, val.Username),
-			slog.String(FieldSessionToken, val.SessionToken),
+			slog.String(FieldTokenID, val.TokenID),
 		)
-	} else {
-		fmt.Println("no user info")
 	}
 
 	return h.Handler.Handle(ctx, r)

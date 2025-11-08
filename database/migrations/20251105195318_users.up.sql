@@ -11,8 +11,9 @@ create table if not exists users (
 -- default admin user; password=admin
 insert into users (id, provider, username, email, display_name, password) values ('354ce225-7a97-4daa-8255-5fef049e8b1d', 'local', 'admin', '', 'Administrator', '$argon2id$v=19$m=16,t=2,p=1$QXNjcVZUb3NuZGF0VDZJdg$WQ5019fGGqYymE6isgsOtg');
 
-create table if not exists sessions (
-    token varchar(255) primary key,
+create table if not exists tokens (
+    id varchar(8) primary key,
+    hash varchar(255) not null unique,
     user_id uuid not null references users(id) on delete cascade,
     created_at timestamptz not null default now(),
     expires_at timestamptz not null,

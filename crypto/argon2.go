@@ -1,6 +1,7 @@
 package crypto
 
 import (
+	"crypto/rand"
 	"crypto/subtle"
 	"encoding/base64"
 	"errors"
@@ -21,6 +22,14 @@ type Argon2Params struct {
 	parallelism uint8
 	saltLength  uint32
 	keyLength   uint32
+}
+
+var argonParams = &Argon2Params{
+	memory:      64 * 1024,
+	iterations:  2,
+	parallelism: 4,
+	saltLength:  16,
+	keyLength:   32,
 }
 
 func DecodeArgonHash(encodedHash string) (p *Argon2Params, salt, hash []byte, err error) {
@@ -71,4 +80,31 @@ func ValidatePasswordWithArgonHash(password string, encodedHash string) (bool, e
 		return true, nil
 	}
 	return false, nil
+}
+
+func generateRandomBytes(n uint32) ([]byte, error) {
+	b := make([]byte, n)
+	_, err := rand.Read(b)
+	if err != nil {
+		return nil, err
+	}
+
+	return b, nil
+}
+
+func CalculateArgonHash(password string) (encodedHash string, err error) {
+	salt, err := generateRandomBytes(argonParams.saltLength)
+	if err != nil {
+		return "", err
+	}
+
+	hash := argon2.IDKey([]byte(password), salt, argonParams.iterations, argonParams.memory, argonParams.parallelism, argonParams.keyLength)
+
+	// Base64 encode the salt and hashed password.
+	b64Salt := base64.RawStdEncoding.EncodeToString(salt)
+	b64Hash := base64.RawStdEncoding.EncodeToString(hash)
+
+	encodedHash = fmt.Sprintf("$argon2id$v=%d$m=%d,t=%d,p=%d$%s$%s", argon2.Version,
+		argonParams.memory, argonParams.iterations, argonParams.parallelism, b64Salt, b64Hash)
+	return encodedHash, nil
 }

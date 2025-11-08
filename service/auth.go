@@ -5,31 +5,71 @@ import (
 	"cortex/crypto"
 	"cortex/logging"
 	"cortex/repository"
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 var ErrUnauthenticated = errors.New("unauthenticated")
 
-type CreateSessionOptions struct {
+type CreateTokenOptions struct {
 	UserID    string
 	UserAgent string
 	SourceIP  string
 }
+
+type token struct {
+	id     string
+	secret string
+}
+
+func randomString(byteNum int) string {
+	id := make([]byte, byteNum)
+	_, err := rand.Read(id)
+	if err != nil {
+		panic(err)
+	}
+
+	// Convert to hex string
+	return hex.EncodeToString(id)
+}
+
+func newToken() token {
+	return token{
+		id:     randomString(4),
+		secret: randomString(16),
+	}
+}
+
+func (t token) ToTokenString() string {
+	return fmt.Sprintf("%s.%s", t.id, t.secret)
+}
+
+func parseTokenString(tokenString string) (token, error) {
+	parts := strings.Split(tokenString, ".")
+	if len(parts) != 2 {
+		return token{}, fmt.Errorf("invalid token string")
+	}
+	return token{
+		id:     parts[0],
+		secret: parts[1],
+	}, nil
+}
+
 type AuthService interface {
 	ListUsers(ctx context.Context) ([]repository.User, error)
 	GetUser(ctx context.Context, id string) (*repository.User, error)
 
 	CheckUsernamePassword(ctx context.Context, username string, password string) (*repository.User, error)
-	ValidateSession(ctx context.Context, token string) (*repository.User, error)
-	CreateSession(ctx context.Context, opt CreateSessionOptions) (*repository.Session, error)
-	DeleteSession(ctx context.Context, token string) error
+	ValidateToken(ctx context.Context, tokenString string) (*repository.User, string, error)
+	CreateSessionToken(ctx context.Context, opt CreateTokenOptions) (*repository.AuthToken, string, error)
+	RevokeToken(ctx context.Context, tokenString string) error
 }
 
 type authService struct {
@@ -62,7 +102,6 @@ func (s authService) CheckUsernamePassword(ctx context.Context, username string,
 		return nil, err
 	}
 
-	// TODO: check password
 	match, err := crypto.ValidatePasswordWithArgonHash(password, user.Password)
 	if err != nil {
 		return nil, err
@@ -75,12 +114,17 @@ func (s authService) CheckUsernamePassword(ctx context.Context, username string,
 	return user, nil
 }
 
-func (s authService) ValidateSession(ctx context.Context, token string) (*repository.User, error) {
-	s.logger.DebugContext(ctx, fmt.Sprintf("validating session with token %s", token))
+func (s authService) ValidateToken(ctx context.Context, tokenString string) (*repository.User, string, error) {
+	components, err := parseTokenString(tokenString)
+	if err != nil {
+		return nil, "", err
+	}
+
+	s.logger.DebugContext(ctx, fmt.Sprintf("validating token %s", components.id))
 
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	defer func() {
 		switch err {
@@ -91,40 +135,52 @@ func (s authService) ValidateSession(ctx context.Context, token string) (*reposi
 		}
 	}()
 
-	session, err := s.repo.GetSession(ctx, tx, token)
+	authToken, err := s.repo.GetToken(ctx, tx, components.id)
 	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
-			s.logger.WarnContext(ctx, fmt.Sprintf("unknown session token %s", token))
-			return nil, ErrUnauthenticated
+			s.logger.WarnContext(ctx, fmt.Sprintf("unknown token %s", components.id))
+			return nil, "", ErrUnauthenticated
 		}
-		return nil, err
+		return nil, "", err
 	}
 
-	// check if session is expired
-	if session.ExpiresAt.Before(time.Now()) {
-		s.logger.DebugContext(ctx, fmt.Sprintf("session token %s expired", token))
-		return nil, ErrUnauthenticated
+	// check if authToken is expired
+	if authToken.ExpiresAt.Before(time.Now()) {
+		s.logger.DebugContext(ctx, fmt.Sprintf("token %s expired", authToken.ID))
+		return nil, "", ErrUnauthenticated
 	}
 
-	user, err := s.repo.GetUser(ctx, tx, session.UserID)
+	// validate hash
+	match, err := crypto.ValidatePasswordWithArgonHash(components.secret, authToken.Hash)
+	if err != nil {
+		s.logger.DebugContext(ctx, "failed to validate token", logging.FieldError, err)
+		return nil, "", ErrUnauthenticated
+	}
+	if !match {
+		s.logger.DebugContext(ctx, fmt.Sprintf("token %s failed validation", authToken.ID))
+		return nil, "", ErrUnauthenticated
+	}
+
+	user, err := s.repo.GetUser(ctx, tx, authToken.UserID)
 	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
-			s.logger.WarnContext(ctx, fmt.Sprintf("unknown user %s for session", session.UserID))
-			return nil, ErrUnauthenticated
+			s.logger.WarnContext(ctx, fmt.Sprintf("unknown user %s for token", authToken.UserID))
+			return nil, "", ErrUnauthenticated
 		}
-		return nil, err
+		return nil, "", err
 	}
 
-	s.logger.DebugContext(ctx, fmt.Sprintf("authentication request for token user %s (%s) using session token %s is valid", user.ID, user.Username, token))
-	return user, nil
+	s.logger.DebugContext(ctx, fmt.Sprintf("authentication request for user %s (%s) using id %s is valid",
+		user.ID, user.Username, authToken.ID))
+	return user, components.id, nil
 }
 
-func (s authService) CreateSession(ctx context.Context, opt CreateSessionOptions) (*repository.Session, error) {
-	s.logger.DebugContext(ctx, fmt.Sprintf("creating session for user %s", opt.UserID))
+func (s authService) CreateSessionToken(ctx context.Context, opt CreateTokenOptions) (*repository.AuthToken, string, error) {
+	s.logger.DebugContext(ctx, fmt.Sprintf("creating session token for user %s", opt.UserID))
 
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	defer func() {
 		switch err {
@@ -139,17 +195,25 @@ func (s authService) CreateSession(ctx context.Context, opt CreateSessionOptions
 	_, err = s.repo.GetUser(ctx, tx, opt.UserID)
 	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
-			s.logger.WarnContext(ctx, fmt.Sprintf("requested to create session for unknown user id %s", opt.UserID))
+			s.logger.WarnContext(ctx, fmt.Sprintf("requested to create token for unknown user id %s", opt.UserID))
 		}
-		return nil, err
+		return nil, "", err
 	}
 
-	// TODO: make session expiration configurable
+	// TODO: make token expiration configurable
 	expiration := time.Now().Add(time.Hour * 24 * 7)
 
-	session := repository.Session{
+	tokenComponents := newToken()
+
+	hash, err := crypto.CalculateArgonHash(tokenComponents.secret)
+	if err != nil {
+		return nil, "", err
+	}
+
+	authToken := repository.AuthToken{
+		ID:        tokenComponents.id,
 		UserID:    opt.UserID,
-		Token:     s.generateSessionID(),
+		Hash:      hash,
 		UserAgent: opt.UserAgent,
 		SourceIP:  opt.SourceIP,
 		Revoked:   false,
@@ -157,18 +221,23 @@ func (s authService) CreateSession(ctx context.Context, opt CreateSessionOptions
 		ExpiresAt: expiration,
 	}
 
-	err = s.repo.CreateSession(ctx, tx, &session)
+	err = s.repo.StoreToken(ctx, tx, &authToken)
 	if err != nil {
-		s.logger.ErrorContext(ctx, "failed to create session", logging.FieldError, err)
-		return nil, err
+		s.logger.ErrorContext(ctx, "failed to create token", logging.FieldError, err)
+		return nil, "", err
 	}
 
-	s.logger.InfoContext(ctx, fmt.Sprintf("created session for user %s with token %s", opt.UserID, session.Token))
-	return &session, nil
+	s.logger.InfoContext(ctx, fmt.Sprintf("created token for user %s with id %s", opt.UserID, authToken.ID))
+	return &authToken, tokenComponents.ToTokenString(), nil
 }
 
-func (s authService) DeleteSession(ctx context.Context, token string) error {
-	s.logger.DebugContext(ctx, fmt.Sprintf("invalidating session with token %s", token))
+func (s authService) RevokeToken(ctx context.Context, tokenString string) error {
+	components, err := parseTokenString(tokenString)
+	if err != nil {
+		return err
+	}
+
+	s.logger.DebugContext(ctx, fmt.Sprintf("invalidating token with token %s", components.id))
 
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -183,13 +252,13 @@ func (s authService) DeleteSession(ctx context.Context, token string) error {
 		}
 	}()
 
-	err = s.repo.DeleteSession(ctx, tx, token)
+	err = s.repo.DeleteToken(ctx, tx, components.id)
 	if err != nil {
-		s.logger.ErrorContext(ctx, "failed to delete session", logging.FieldError, err)
+		s.logger.ErrorContext(ctx, "failed to delete token", logging.FieldError, err)
 		return err
 	}
 
-	s.logger.InfoContext(ctx, fmt.Sprintf("deleted session with token %s", token))
+	s.logger.InfoContext(ctx, fmt.Sprintf("deleted token %s", components.id))
 	return nil
 }
 
@@ -237,10 +306,6 @@ func (s authService) GetUser(ctx context.Context, id string) (*repository.User, 
 		return nil, err
 	}
 	return user, nil
-}
-
-func (s authService) generateSessionID() string {
-	return strings.ReplaceAll(uuid.New().String(), "-", "")
 }
 
 func NewAuthService(authRepo repository.AuthRepository, pool *pgxpool.Pool) AuthService {

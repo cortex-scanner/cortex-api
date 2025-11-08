@@ -7,9 +7,10 @@ import (
 	"cortex/service"
 	"log/slog"
 	"net/http"
+	"strings"
 )
 
-const sessionCookieName = "SESSID"
+const tokenHeader = "Authorization"
 
 type Authentication struct {
 	logger      *slog.Logger
@@ -27,16 +28,27 @@ func (h *Authentication) OnRequest(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h.logger.DebugContext(r.Context(), "authenticating user")
 
-		// check for session cookie
-		cookie, err := r.Cookie(sessionCookieName)
-		if err != nil {
-			h.logger.DebugContext(r.Context(), "failed to get cookie from request", logging.FieldError, err)
+		// check for token header
+		authHeader := r.Header.Get(tokenHeader)
+		if authHeader == "" {
+			h.logger.DebugContext(r.Context(), "failed to get token from request")
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		headerPrefix := "Bearer "
+		tokenString, formatOk := strings.CutPrefix(authHeader, headerPrefix)
+		if !formatOk {
+			h.logger.DebugContext(r.Context(), "invalid token format, expected Bearer")
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
 
-		// validate session
-		user, err := h.authService.ValidateSession(r.Context(), cookie.Value)
+		// validate token
+		user, tokenId, err := h.authService.ValidateToken(r.Context(), tokenString)
+		if err != nil {
+			h.logger.DebugContext(r.Context(), "failed to validate token", logging.FieldError, err)
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+		}
 		if err != nil {
 			h.logger.DebugContext(r.Context(), "failed to validate session", logging.FieldError, err)
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
@@ -44,12 +56,12 @@ func (h *Authentication) OnRequest(next http.Handler) http.Handler {
 		}
 
 		h.logger.DebugContext(r.Context(), "authenticated user", logging.FieldUserID, user.ID,
-			logging.FieldSessionToken, cookie.Value)
+			logging.FieldTokenID, tokenId)
 
 		info := cortexContext.UserInfoData{
-			UserID:       user.ID,
-			Username:     user.Username,
-			SessionToken: cookie.Value,
+			UserID:   user.ID,
+			Username: user.Username,
+			TokenID:  tokenId,
 		}
 
 		ctx := context.WithValue(r.Context(), cortexContext.KeyUserInfo, info)
