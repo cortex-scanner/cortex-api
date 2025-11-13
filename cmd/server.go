@@ -93,7 +93,6 @@ func (s *Server) Start() {
 		r.Get("/scan-configs", handler.Make(scanConfigHandler.HandleList))
 		r.Get("/scan-configs/{id}", handler.Make(scanConfigHandler.HandleGet))
 		r.Post("/scan-configs", handler.Make(scanConfigHandler.HandleCreate))
-		r.Patch("/scan-configs/{id}/assets", handler.Make(scanConfigHandler.HandleUpdateAssets))
 		r.Put("/scan-configs/{id}", handler.Make(scanConfigHandler.HandleUpdate))
 		r.Delete("/scan-configs/{id}", handler.Make(scanConfigHandler.HandleDelete))
 

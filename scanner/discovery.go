@@ -14,15 +14,15 @@ import (
 	"github.com/projectdiscovery/naabu/v2/pkg/runner"
 )
 
-type DiscoveryScanner struct {
+type NaabuScanner struct {
 	logger *slog.Logger
 	repo   repository.ScanRepository
 	pool   *pgxpool.Pool
 }
 
-func (d DiscoveryScanner) Scan(ctx context.Context, scan repository.ScanExecution, config repository.ScanConfiguration) error {
+func (d NaabuScanner) Scan(ctx context.Context, scan repository.ScanExecution, config repository.ScanConfiguration) error {
 	var hosts []string
-	for _, asset := range config.Targets {
+	for _, asset := range scan.Assets {
 		hosts = append(hosts, asset.Endpoint)
 	}
 
@@ -87,7 +87,7 @@ func (d DiscoveryScanner) Scan(ctx context.Context, scan repository.ScanExecutio
 			}
 
 			discoveryResult := repository.ScanAssetDiscoveryResult{
-				AssetID:   d.findAssetID(config.Targets, naabuResult.Host),
+				AssetID:   d.findAssetID(scan.Assets, naabuResult.Host),
 				Port:      port.Port,
 				Protocol:  proto,
 				FirstSeen: now,
@@ -117,7 +117,7 @@ func (d DiscoveryScanner) Scan(ctx context.Context, scan repository.ScanExecutio
 	return nil
 }
 
-func (d DiscoveryScanner) findAssetID(assets []repository.ScanAsset, endpoint string) string {
+func (d NaabuScanner) findAssetID(assets []repository.ScanAsset, endpoint string) string {
 	for _, asset := range assets {
 		if asset.Endpoint == endpoint {
 			return asset.ID
@@ -126,8 +126,8 @@ func (d DiscoveryScanner) findAssetID(assets []repository.ScanAsset, endpoint st
 	return ""
 }
 
-func NewDiscoveryScanner(repo repository.ScanRepository, pool *pgxpool.Pool) Scanner {
-	return DiscoveryScanner{
+func NewNaabuScanner(repo repository.ScanRepository, pool *pgxpool.Pool) Scanner {
+	return NaabuScanner{
 		logger: logging.GetLogger(logging.Scan),
 		repo:   repo,
 		pool:   pool,

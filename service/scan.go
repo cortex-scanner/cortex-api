@@ -5,9 +5,7 @@ import (
 	"cortex/logging"
 	"cortex/repository"
 	"cortex/scanner"
-	"fmt"
 	"log/slog"
-	"slices"
 	"time"
 
 	"github.com/google/uuid"
@@ -26,7 +24,6 @@ type ScanService interface {
 	GetScanConfig(ctx context.Context, id string) (*repository.ScanConfiguration, error)
 	CreateScanConfig(ctx context.Context, name string) (*repository.ScanConfiguration, error)
 	UpdateScanConfig(ctx context.Context, id string, newName string) (*repository.ScanConfiguration, error)
-	UpdateScanConfigAssets(ctx context.Context, id string, assetIDs []string) (*repository.ScanConfiguration, error)
 	DeleteScanConfig(ctx context.Context, id string) (*repository.ScanConfiguration, error)
 
 	ListAssets(ctx context.Context) ([]repository.ScanAsset, error)
@@ -39,7 +36,7 @@ type ScanService interface {
 
 	ListAssetDiscoveryResults(ctx context.Context, assetID string) ([]repository.ScanAssetDiscoveryResult, error)
 
-	RunScan(ctx context.Context, configID string, scanType string) (*repository.ScanExecution, error)
+	RunScan(ctx context.Context, configID string, assetIds []string) (*repository.ScanExecution, error)
 	ListScans(ctx context.Context) ([]repository.ScanExecution, error)
 	GetScan(ctx context.Context, id string) (*repository.ScanExecution, error)
 	UpdateScan(ctx context.Context, scanID string, update ScanUpdateOptions) (*repository.ScanExecution, error)
@@ -113,9 +110,8 @@ func (s scanService) CreateScanConfig(ctx context.Context, name string) (*reposi
 	}()
 
 	config := repository.ScanConfiguration{
-		ID:      uuid.New().String(),
-		Name:    name,
-		Targets: make([]repository.ScanAsset, 0),
+		ID:   uuid.New().String(),
+		Name: name,
 	}
 
 	err = s.repo.CreateScanConfiguration(ctx, tx, config)
@@ -159,80 +155,6 @@ func (s scanService) UpdateScanConfig(ctx context.Context, id string, newName st
 	}
 
 	s.logger.InfoContext(ctx, "scan configuration updated", logging.FieldScanConfigID, id)
-
-	return config, nil
-}
-
-func (s scanService) UpdateScanConfigAssets(ctx context.Context, id string, assetIDs []string) (*repository.ScanConfiguration, error) {
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return nil, err
-	}
-	defer func() {
-		switch err {
-		case nil:
-			err = tx.Commit(ctx)
-		default:
-			_ = tx.Rollback(ctx)
-		}
-	}()
-
-	config, err := s.repo.GetScanConfiguration(ctx, tx, id)
-	if err != nil {
-		s.logger.ErrorContext(ctx, "failed to get scan configuration for asset update",
-			logging.FieldScanConfigID, id, logging.FieldError, err)
-		return nil, err
-	}
-
-	currentAssetIDs := make([]string, 0)
-	for _, asset := range config.Targets {
-		currentAssetIDs = append(currentAssetIDs, asset.ID)
-	}
-
-	// find new assets
-	newAssets := make([]string, 0)
-	for _, assetID := range assetIDs {
-		if _, err := s.repo.GetScanAsset(ctx, tx, assetID); err == nil {
-			if !slices.Contains(currentAssetIDs, assetID) {
-				newAssets = append(newAssets, assetID)
-			}
-		} else {
-			return nil, repository.ErrNotFound
-		}
-	}
-
-	// find removed assets
-	removedAssets := make([]string, 0)
-	for _, assetID := range currentAssetIDs {
-		if !slices.Contains(assetIDs, assetID) {
-			removedAssets = append(removedAssets, assetID)
-		}
-	}
-
-	s.logger.DebugContext(ctx, fmt.Sprintf("adding %d assets, removing %d assets", len(newAssets), len(removedAssets)),
-		logging.FieldScanConfigID, id)
-
-	err = s.repo.AddScanConfigurationAssets(ctx, tx, id, newAssets)
-	if err != nil {
-		s.logger.ErrorContext(ctx, "failed to add assets to scan configuration",
-			logging.FieldScanConfigID, id, logging.FieldError, err)
-		return nil, err
-	}
-	err = s.repo.RemoveScanConfigurationAssets(ctx, tx, id, removedAssets)
-	if err != nil {
-		s.logger.ErrorContext(ctx, "failed to remove assets from scan configuration",
-			logging.FieldScanConfigID, id, logging.FieldError, err)
-	}
-
-	s.logger.InfoContext(ctx, "scan configuration assets updated", logging.FieldScanConfigID, id)
-
-	// get config again to get updated asset list
-	config, err = s.repo.GetScanConfiguration(ctx, tx, id)
-	if err != nil {
-		s.logger.ErrorContext(ctx, "failed to get scan configuration after asset update",
-			logging.FieldScanConfigID, id, logging.FieldError, err)
-		return nil, err
-	}
 
 	return config, nil
 }
@@ -497,7 +419,7 @@ func (s scanService) UpdateAsset(ctx context.Context, id string, newEndpoint str
 	return asset, nil
 }
 
-func (s scanService) RunScan(ctx context.Context, configID string, scanType string) (*repository.ScanExecution, error) {
+func (s scanService) RunScan(ctx context.Context, configID string, assetIds []string) (*repository.ScanExecution, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return nil, err
@@ -522,11 +444,23 @@ func (s scanService) RunScan(ctx context.Context, configID string, scanType stri
 	now := time.Now()
 	scan := repository.ScanExecution{
 		ID:                  uuid.New().String(),
-		Type:                repository.ScanType(scanType),
 		ScanConfigurationID: config.ID,
 		Status:              repository.ScanStatusRunning,
 		StartTime:           &now,
 		EndTime:             nil,
+	}
+
+	// add assets to scan
+	for _, assetId := range assetIds {
+		// check if the asset exists
+		asset, err := s.repo.GetScanAsset(ctx, tx, assetId)
+		if err != nil {
+			s.logger.ErrorContext(ctx, "failed to get scan asset",
+				logging.FieldAssetID, assetId, logging.FieldError, err)
+			return nil, err
+		}
+
+		scan.Assets = append(scan.Assets, *asset)
 	}
 
 	err = s.repo.CreateScan(ctx, tx, scan)

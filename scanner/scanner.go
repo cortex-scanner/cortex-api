@@ -10,6 +10,10 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+const (
+	ScanEngineNaabu string = "naabu"
+)
+
 type Scanner interface {
 	Scan(ctx context.Context, scan repository.ScanExecution, config repository.ScanConfiguration) error
 }
@@ -22,11 +26,11 @@ type ScanRunner struct {
 
 func (s ScanRunner) Scan(ctx context.Context, scan repository.ScanExecution, config repository.ScanConfiguration) error {
 	var scanner Scanner
-	switch scan.Type {
-	case "discovery":
-		scanner = NewDiscoveryScanner(s.repo, s.pool)
+	switch config.Engine {
+	case ScanEngineNaabu:
+		scanner = NewNaabuScanner(s.repo, s.pool)
 	default:
-		return errors.New("unsupported scan type")
+		return errors.New("unsupported scan engine")
 	}
 
 	// just start scan for now

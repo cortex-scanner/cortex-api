@@ -73,9 +73,10 @@ func (d ScanAssetDiscoveryResult) MarshalJSON() ([]byte, error) {
 
 // ScanConfiguration defines a scan configuration applied to a scan
 type ScanConfiguration struct {
-	ID      string      `json:"id"`
-	Name    string      `json:"name"`
-	Targets []ScanAsset `json:"targets"`
+	ID     string   `json:"id"`
+	Name   string   `json:"name"`
+	Type   ScanType `json:"type"`
+	Engine string   `json:"engine"`
 }
 
 type ScanStatus string
@@ -98,12 +99,12 @@ const (
 
 // ScanExecution represents metadata and status details for a single scan execution.
 type ScanExecution struct {
-	ID                  string     `json:"id"`
-	ScanConfigurationID string     `json:"scanConfigurationId"`
-	Type                ScanType   `json:"type"`
-	Status              ScanStatus `json:"status"`
-	StartTime           *time.Time `json:"startTime"`
-	EndTime             *time.Time `json:"endTime"`
+	ID                  string      `json:"id"`
+	ScanConfigurationID string      `json:"scanConfigurationId"`
+	Status              ScanStatus  `json:"status"`
+	StartTime           *time.Time  `json:"startTime"`
+	EndTime             *time.Time  `json:"endTime"`
+	Assets              []ScanAsset `json:"assets"`
 }
 
 func (s ScanExecution) MarshalJSON() ([]byte, error) {
@@ -118,19 +119,20 @@ func (s ScanExecution) MarshalJSON() ([]byte, error) {
 	}
 
 	data := struct {
-		ID                  string     `json:"id"`
-		ScanConfigurationID string     `json:"scanConfigurationId"`
-		Type                ScanType   `json:"type"`
-		Status              ScanStatus `json:"status"`
-		StartTime           int64      `json:"startTime"`
-		EndTime             int64      `json:"endTime"`
+		ID                  string      `json:"id"`
+		ScanConfigurationID string      `json:"scanConfigurationId"`
+		Type                ScanType    `json:"type"`
+		Status              ScanStatus  `json:"status"`
+		StartTime           int64       `json:"startTime"`
+		EndTime             int64       `json:"endTime"`
+		Assets              []ScanAsset `json:"assets"`
 	}{
 		ID:                  s.ID,
 		ScanConfigurationID: s.ScanConfigurationID,
-		Type:                s.Type,
 		Status:              s.Status,
 		StartTime:           startTime,
 		EndTime:             endTime,
+		Assets:              s.Assets,
 	}
 
 	return json.Marshal(data)
@@ -167,10 +169,6 @@ type ScanConfigurationRepository interface {
 	UpdateScanConfiguration(ctx context.Context, tx pgx.Tx, scanConfiguration ScanConfiguration) error
 	// DeleteScanConfiguration removes a scan configuration using its unique identifier.
 	DeleteScanConfiguration(ctx context.Context, tx pgx.Tx, id string) error
-	// RemoveScanConfigurationAssets removes specified assets from a scan configuration identified by its unique ID.
-	RemoveScanConfigurationAssets(ctx context.Context, tx pgx.Tx, scanConfigID string, assetIDs []string) error
-	// AddScanConfigurationAssets associates a list of asset IDs with the specified scan configuration in the repository.
-	AddScanConfigurationAssets(ctx context.Context, tx pgx.Tx, scanConfigID string, assetIDs []string) error
 }
 
 // ScanExecutionRepository defines methods for managing scan executions and their metadata in a repository.

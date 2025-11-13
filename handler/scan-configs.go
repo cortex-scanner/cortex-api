@@ -8,16 +8,13 @@ import (
 )
 
 type createConfigRequestBody struct {
-	Name string `json:"name" validate:"required,max=1000"`
+	Name   string `json:"name" validate:"required,max=1000"`
+	Engine string `json:"engine" validate:"required,oneof=naabu"`
 }
 
 type updateConfigRequestBody struct {
 	ID   string `json:"id" validate:"required,uuid4"`
 	Name string `json:"name" validate:"required,max=1000"`
-}
-
-type updateConfigAssetsRequestBody struct {
-	AssetIDs []string `json:"ids" validate:"required"`
 }
 
 type ScanConfigHandler struct {
@@ -105,23 +102,4 @@ func (h ScanConfigHandler) HandleDelete(w http.ResponseWriter, r *http.Request) 
 		return WrapError(err)
 	}
 	return nil
-}
-
-func (h ScanConfigHandler) HandleUpdateAssets(w http.ResponseWriter, r *http.Request) error {
-	id := r.PathValue("id")
-	var requestBody updateConfigAssetsRequestBody
-	if err := ParseAndValidateBody(&requestBody, r, h.validate); err != nil {
-		return WrapError(err)
-	}
-
-	config, err := h.scanService.UpdateScanConfigAssets(r.Context(), id, requestBody.AssetIDs)
-	if err != nil {
-		return WrapError(err)
-	}
-
-	if err = RespondOne(w, r, config); err != nil {
-		return WrapError(err)
-	}
-	return nil
-
 }
