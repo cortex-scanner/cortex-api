@@ -10,7 +10,7 @@ import (
 
 type runScanRequestBody struct {
 	ScanConfigId string   `json:"configId" validate:"required,uuid4"`
-	AssetIDs     []string `json:"assetIds" validate:"required,uuid4"`
+	AssetIDs     []string `json:"assetIds" validate:"required,dive,uuid4"`
 }
 
 type updateScanRequestBody struct {

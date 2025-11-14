@@ -516,7 +516,11 @@ func (p PostgresScanRepository) GetAssetStats(ctx context.Context, tx pgx.Tx, as
 	var lastDiscoveryTime time.Time
 	err = row.Scan(&lastDiscoveryTime)
 	if err != nil {
-		return nil, err
+		if errors.Is(err, pgx.ErrNoRows) {
+			lastDiscoveryTime = time.Time{}
+		} else {
+			return nil, err
+		}
 	}
 
 	stats := ScanAssetStats{

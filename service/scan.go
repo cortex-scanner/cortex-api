@@ -473,6 +473,13 @@ func (s scanService) RunScan(ctx context.Context, configID string, assetIds []st
 	s.logger.InfoContext(ctx, "queued scan execution",
 		logging.FieldScanConfigID, config.ID, logging.FieldScanID, scan.ID)
 
+	// commit before running scan so scanner can access the scan
+	err = tx.Commit(ctx)
+	if err != nil {
+		s.logger.ErrorContext(ctx, "failed to commit transaction when creating scan", logging.FieldError, err)
+		return nil, err
+	}
+
 	// run scan
 	err = s.scanRunner.Scan(ctx, scan, *config)
 	if err != nil {
