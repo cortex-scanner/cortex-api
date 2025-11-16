@@ -263,7 +263,7 @@ func (p PostgresScanRepository) DeleteScanConfiguration(ctx context.Context, tx 
 func (p PostgresScanRepository) ListScans(ctx context.Context, tx pgx.Tx) ([]ScanExecution, error) {
 	rows, err := tx.Query(ctx, `
 		SELECT * 
-		FROM scans`)
+		FROM scans;`)
 
 	if err != nil {
 		// return empty list if no identities are found
@@ -283,7 +283,12 @@ func (p PostgresScanRepository) ListScans(ctx context.Context, tx pgx.Tx) ([]Sca
 			return nil, err
 		}
 
-		// get assets associated with scan
+		scans = append(scans, scan)
+	}
+
+	// get assets associated with scans
+	// we cannot do this in the loop above because the connection is busy until all rows are read
+	for _, scan := range scans {
 		rows, err = tx.Query(ctx, `
 			SELECT *
 			FROM assets
@@ -299,15 +304,14 @@ func (p PostgresScanRepository) ListScans(ctx context.Context, tx pgx.Tx) ([]Sca
 		var assets []ScanAsset
 		for rows.Next() {
 			var asset ScanAsset
-			err = rows.Scan(&asset.ID, &asset.Endpoint)
+			var dontCare any
+			err = rows.Scan(&asset.ID, &asset.Endpoint, &dontCare, &dontCare)
 			if err != nil {
 				return nil, err
 			}
 			assets = append(assets, asset)
 		}
 		scan.Assets = assets
-
-		scans = append(scans, scan)
 	}
 
 	return scans, nil
