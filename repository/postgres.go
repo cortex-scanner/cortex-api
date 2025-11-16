@@ -288,7 +288,7 @@ func (p PostgresScanRepository) ListScans(ctx context.Context, tx pgx.Tx) ([]Sca
 
 	// get assets associated with scans
 	// we cannot do this in the loop above because the connection is busy until all rows are read
-	for _, scan := range scans {
+	for index, scan := range scans {
 		rows, err = tx.Query(ctx, `
 			SELECT *
 			FROM assets
@@ -311,7 +311,8 @@ func (p PostgresScanRepository) ListScans(ctx context.Context, tx pgx.Tx) ([]Sca
 			}
 			assets = append(assets, asset)
 		}
-		scan.Assets = assets
+
+		scans[index].Assets = assets
 	}
 
 	return scans, nil
