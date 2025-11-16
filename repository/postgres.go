@@ -530,6 +530,53 @@ func (p PostgresScanRepository) GetAssetStats(ctx context.Context, tx pgx.Tx, as
 	return &stats, nil
 }
 
+func (p PostgresScanRepository) GetAssetHistory(ctx context.Context, tx pgx.Tx, assetID string) ([]AssetHistoryEntry, error) {
+	rows, err := tx.Query(ctx, `
+		SELECT * 
+		FROM asset_history
+		WHERE asset_id = $1;
+	`, assetID)
+
+	if err != nil {
+		// return empty list if no identities are found
+		if errors.Is(err, pgx.ErrNoRows) {
+			// reset error to not trigger rollback
+			return []AssetHistoryEntry{}, nil
+		}
+		return nil, err
+	}
+	defer rows.Close()
+
+	var entries []AssetHistoryEntry
+	for rows.Next() {
+		var entry AssetHistoryEntry
+		err = rows.Scan(&entry.ID, &entry.AssetID, &entry.Type, &entry.UserID, &entry.Time, &entry.Data)
+		if err != nil {
+			return nil, err
+		}
+		entries = append(entries, entry)
+	}
+
+	return entries, nil
+}
+
+func (p PostgresScanRepository) AddAssetHistoryEntry(ctx context.Context, tx pgx.Tx, entry AssetHistoryEntry) error {
+	args := pgx.NamedArgs{
+		"id":         entry.ID,
+		"asset_id":   entry.AssetID,
+		"event_type": entry.Type,
+		"user_id":    entry.UserID,
+		"timestamp":  entry.Time,
+		"event_data": entry.Data,
+	}
+
+	_, err := tx.Exec(ctx, `
+		INSERT INTO asset_history (id, asset_id, event_type, user_id, timestamp, event_data) 
+		VALUES(@id, @asset_id, @event_type, @user_id, @timestamp, @event_data)`, args)
+
+	return err
+}
+
 func NewPostgresScanRepository() *PostgresScanRepository {
 	return &PostgresScanRepository{
 		logger: logging.GetLogger(logging.DataAccess),

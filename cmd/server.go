@@ -88,6 +88,7 @@ func (s *Server) Start() {
 		r.Put("/assets/{id}", handler.Make(assetHandler.HandleUpdate))
 		r.Delete("/assets/{id}", handler.Make(assetHandler.HandleDelete))
 		r.Get("/assets/{id}/discovery", handler.Make(assetHandler.HandleListAssetDiscoveryResults))
+		r.Get("/assets/{id}/history", handler.Make(assetHandler.HandleListAssetHistory))
 
 		// scan config routes
 		r.Get("/scan-configs", handler.Make(scanConfigHandler.HandleList))

@@ -149,3 +149,17 @@ func (h AssetHandler) HandleListAssetDiscoveryResults(w http.ResponseWriter, r *
 	}
 	return nil
 }
+
+func (h AssetHandler) HandleListAssetHistory(w http.ResponseWriter, r *http.Request) error {
+	assetId := r.PathValue("id")
+
+	results, err := h.scanService.ListAssetHistory(r.Context(), assetId)
+	if err != nil {
+		return WrapError(err)
+	}
+
+	if err = RespondMany(w, r, results); err != nil {
+		return WrapError(err)
+	}
+	return nil
+}

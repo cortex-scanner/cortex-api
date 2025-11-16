@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	cortexContext "cortex/context"
 	"cortex/logging"
 	"cortex/repository"
 	"cortex/scanner"
@@ -35,6 +36,7 @@ type ScanService interface {
 	UpdateAsset(ctx context.Context, id string, newEndpoint string) (*repository.ScanAsset, error)
 
 	ListAssetDiscoveryResults(ctx context.Context, assetID string) ([]repository.ScanAssetDiscoveryResult, error)
+	ListAssetHistory(ctx context.Context, assetID string) ([]repository.AssetHistoryEntry, error)
 
 	RunScan(ctx context.Context, configID string, assetIds []string) (*repository.ScanExecution, error)
 	ListScans(ctx context.Context) ([]repository.ScanExecution, error)
@@ -347,6 +349,27 @@ func (s scanService) CreateAsset(ctx context.Context, endpoint string) (*reposit
 		return nil, err
 	}
 
+	// create event
+	userInfo, err := cortexContext.UserInfo(ctx)
+	if err != nil {
+		s.logger.ErrorContext(ctx, "failed to get user info from context", logging.FieldError, err)
+		return nil, err
+	}
+
+	event := repository.AssetHistoryEntry{
+		ID:      uuid.New().String(),
+		AssetID: asset.ID,
+		UserID:  userInfo.UserID,
+		Time:    time.Now(),
+		Type:    repository.ScanAssetEventTypeCreated,
+		Data:    nil,
+	}
+	err = s.repo.AddAssetHistoryEntry(ctx, tx, event)
+	if err != nil {
+		s.logger.ErrorContext(ctx, "failed to add asset history entry", logging.FieldError, err)
+		return nil, err
+	}
+
 	s.logger.InfoContext(ctx, "scan asset created", logging.FieldAssetID, asset.ID)
 
 	return &asset, nil
@@ -411,6 +434,29 @@ func (s scanService) UpdateAsset(ctx context.Context, id string, newEndpoint str
 	if err != nil {
 		s.logger.ErrorContext(ctx, "Failed to update scan asset",
 			logging.FieldAssetID, id, logging.FieldError, err)
+		return nil, err
+	}
+
+	// create event
+	userInfo, err := cortexContext.UserInfo(ctx)
+	if err != nil {
+		s.logger.ErrorContext(ctx, "failed to get user info from context", logging.FieldError, err)
+		return nil, err
+	}
+
+	event := repository.AssetHistoryEntry{
+		ID:      uuid.New().String(),
+		AssetID: asset.ID,
+		UserID:  userInfo.UserID,
+		Time:    time.Now(),
+		Type:    repository.ScanAssetEventTypeUpdated,
+		// TODO: get changed attributes
+		Data: nil,
+	}
+
+	err = s.repo.AddAssetHistoryEntry(ctx, tx, event)
+	if err != nil {
+		s.logger.ErrorContext(ctx, "failed to add asset history entry", logging.FieldError, err)
 		return nil, err
 	}
 
@@ -601,6 +647,29 @@ func (s scanService) ListAssetDiscoveryResults(ctx context.Context, assetID stri
 		return nil, err
 	}
 	return results, nil
+}
+
+func (s scanService) ListAssetHistory(ctx context.Context, assetID string) ([]repository.AssetHistoryEntry, error) {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		switch err {
+		case nil:
+			err = tx.Commit(ctx)
+		default:
+			_ = tx.Rollback(ctx)
+		}
+	}()
+
+	history, err := s.repo.GetAssetHistory(ctx, tx, assetID)
+	if err != nil {
+		s.logger.ErrorContext(ctx, "failed to get asset history", logging.FieldAssetID, assetID, logging.FieldError, err)
+		return nil, err
+	}
+
+	return history, nil
 }
 
 func NewScanService(scanRepo repository.ScanRepository, pool *pgxpool.Pool) ScanService {

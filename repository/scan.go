@@ -35,6 +35,43 @@ type ScanAssetWithStats struct {
 	Stats    ScanAssetStats `json:"stats"`
 }
 
+type ScanAssetEventType string
+
+const (
+	ScanAssetEventTypeCreated   ScanAssetEventType = "created"
+	ScanAssetEventTypeUpdated   ScanAssetEventType = "updated"
+	ScanAssetEventTypeScanEnded ScanAssetEventType = "scan_finished"
+)
+
+type AssetHistoryEntry struct {
+	ID      string             `json:"id"`
+	AssetID string             `json:"assetId"`
+	UserID  string             `json:"userId"`
+	Time    time.Time          `json:"timestamp"`
+	Type    ScanAssetEventType `json:"eventType"`
+	Data    map[string]any     `json:"eventData"`
+}
+
+func (a AssetHistoryEntry) MarshalJSON() ([]byte, error) {
+	data := struct {
+		ID      string             `json:"id"`
+		AssetID string             `json:"assetId"`
+		UserID  string             `json:"userId"`
+		Time    int64              `json:"timestamp"`
+		Type    ScanAssetEventType `json:"eventType"`
+		Data    map[string]any     `json:"eventData"`
+	}{
+		ID:      a.ID,
+		AssetID: a.AssetID,
+		UserID:  a.UserID,
+		Time:    a.Time.Unix(),
+		Type:    a.Type,
+		Data:    a.Data,
+	}
+
+	return json.Marshal(data)
+}
+
 type ScanProtocol string
 
 const (
@@ -155,6 +192,9 @@ type ScanAssetRepository interface {
 	ListAssetDiscoveryResults(ctx context.Context, tx pgx.Tx, assetID string) ([]ScanAssetDiscoveryResult, error)
 
 	GetAssetStats(ctx context.Context, tx pgx.Tx, assetID string) (*ScanAssetStats, error)
+
+	GetAssetHistory(ctx context.Context, tx pgx.Tx, assetID string) ([]AssetHistoryEntry, error)
+	AddAssetHistoryEntry(ctx context.Context, tx pgx.Tx, entry AssetHistoryEntry) error
 }
 
 // ScanConfigurationRepository defines methods to manage scan configurations in a repository.

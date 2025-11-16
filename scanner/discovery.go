@@ -2,12 +2,14 @@ package scanner
 
 import (
 	"context"
+	cortexContext "cortex/context"
 	"cortex/logging"
 	"cortex/repository"
 	"fmt"
 	"log/slog"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/projectdiscovery/naabu/v2/pkg/protocol"
 	"github.com/projectdiscovery/naabu/v2/pkg/result"
@@ -112,6 +114,34 @@ func (d NaabuScanner) Scan(ctx context.Context, scan repository.ScanExecution, c
 			logging.FieldScanID, scan.ID,
 			logging.FieldError, err)
 		return err
+	}
+
+	// update asset history for finished scan
+	userInfo, err := cortexContext.UserInfo(ctx)
+	if err != nil {
+		d.logger.ErrorContext(ctx, "failed to get user info from context", logging.FieldError, err)
+		return err
+	}
+
+	for _, asset := range scan.Assets {
+		event := repository.AssetHistoryEntry{
+			ID:      uuid.New().String(),
+			AssetID: asset.ID,
+			UserID:  userInfo.UserID,
+			Time:    *scan.EndTime,
+			Type:    repository.ScanAssetEventTypeScanEnded,
+			Data: map[string]any{
+				"scanId": scan.ID,
+				"status": scan.Status,
+				"type":   config.Type,
+			},
+		}
+
+		err = d.repo.AddAssetHistoryEntry(ctx, tx, event)
+		if err != nil {
+			d.logger.ErrorContext(ctx, "failed to add asset history entry", logging.FieldError, err)
+			return err
+		}
 	}
 
 	return nil
