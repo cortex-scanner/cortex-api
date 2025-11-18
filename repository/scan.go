@@ -73,37 +73,37 @@ func (a AssetHistoryEntry) MarshalJSON() ([]byte, error) {
 	return json.Marshal(data)
 }
 
-type ScanProtocol string
+type FindingType string
 
 const (
-	ScanProtocolTCP ScanProtocol = "tcp"
-	ScanProtocolUDP ScanProtocol = "udp"
+	FindingTypePort FindingType = "port"
 )
 
-// ScanAssetDiscoveryResult represents the result of discovering an asset during a scan.
-// It includes information about the asset, port, protocol, and discovery timestamps.
-type ScanAssetDiscoveryResult struct {
-	AssetID   string       `json:"assetId"`
-	Port      int          `json:"port"`
-	Protocol  ScanProtocol `json:"protocol"`
-	FirstSeen time.Time    `json:"firstSeen"`
-	LastSeen  time.Time    `json:"lastSeen"`
+type AssetFinding struct {
+	ID        string         `json:"id"`
+	AssetID   string         `json:"assetId"`
+	FirstSeen time.Time      `json:"firstSeen"`
+	LastSeen  time.Time      `json:"lastSeen"`
+	Type      FindingType    `json:"type"`
+	Data      map[string]any `json:"data"`
 }
 
-func (d ScanAssetDiscoveryResult) MarshalJSON() ([]byte, error) {
+func (f AssetFinding) MarshalJSON() ([]byte, error) {
 	// marshal with time.Time to unix
 	data := struct {
-		AssetID   string       `json:"assetId"`
-		Port      int          `json:"port"`
-		Protocol  ScanProtocol `json:"protocol"`
-		FirstSeen int64        `json:"firstSeen"`
-		LastSeen  int64        `json:"lastSeen"`
+		ID        string         `json:"id"`
+		AssetID   string         `json:"assetId"`
+		FirstSeen int64          `json:"firstSeen"`
+		LastSeen  int64          `json:"lastSeen"`
+		Type      FindingType    `json:"type"`
+		Data      map[string]any `json:"data"`
 	}{
-		AssetID:   d.AssetID,
-		Port:      d.Port,
-		Protocol:  d.Protocol,
-		FirstSeen: d.FirstSeen.Unix(),
-		LastSeen:  d.LastSeen.Unix(),
+		ID:        f.ID,
+		AssetID:   f.AssetID,
+		FirstSeen: f.FirstSeen.Unix(),
+		LastSeen:  f.LastSeen.Unix(),
+		Type:      f.Type,
+		Data:      f.Data,
 	}
 
 	return json.Marshal(data)
@@ -189,8 +189,8 @@ type ScanAssetRepository interface {
 	// DeleteScanAsset removes a scan asset from the repository using its unique identifier.
 	DeleteScanAsset(ctx context.Context, tx pgx.Tx, id string) error
 
-	PutAssetDiscoveryResult(ctx context.Context, tx pgx.Tx, result ScanAssetDiscoveryResult) error
-	ListAssetDiscoveryResults(ctx context.Context, tx pgx.Tx, assetID string) ([]ScanAssetDiscoveryResult, error)
+	PutAssetFinding(ctx context.Context, tx pgx.Tx, result AssetFinding) error
+	ListAssetFindings(ctx context.Context, tx pgx.Tx, assetID string) ([]AssetFinding, error)
 
 	GetAssetStats(ctx context.Context, tx pgx.Tx, assetID string) (*ScanAssetStats, error)
 

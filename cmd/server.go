@@ -87,7 +87,7 @@ func (s *Server) Start() {
 		r.Post("/assets", handler.Make(assetHandler.HandleCreate))
 		r.Put("/assets/{id}", handler.Make(assetHandler.HandleUpdate))
 		r.Delete("/assets/{id}", handler.Make(assetHandler.HandleDelete))
-		r.Get("/assets/{id}/discovery", handler.Make(assetHandler.HandleListAssetDiscoveryResults))
+		r.Get("/assets/{id}/findings", handler.Make(assetHandler.HandleListAssetFindings))
 		r.Get("/assets/{id}/history", handler.Make(assetHandler.HandleListAssetHistory))
 
 		// scan config routes

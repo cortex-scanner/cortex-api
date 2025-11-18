@@ -82,23 +82,38 @@ func (d NaabuScanner) Scan(ctx context.Context, scan repository.ScanExecution, c
 	now := time.Now()
 	for _, naabuResult := range results {
 		for _, port := range naabuResult.Ports {
-			proto := repository.ScanProtocolUDP
+			proto := ProtocolUDP
 			if port.Protocol == protocol.TCP {
-				proto = repository.ScanProtocolTCP
+				proto = ProtocolTCP
 			}
 
-			discoveryResult := repository.ScanAssetDiscoveryResult{
-				AssetID:   d.findAssetID(scan.Assets, naabuResult.Host),
-				Port:      port.Port,
-				Protocol:  proto,
-				FirstSeen: now,
-				LastSeen:  now,
+			// get current asset findings for this host
+			assetID := d.findAssetID(scan.Assets, naabuResult.Host)
+			currentFindings, err := d.repo.ListAssetFindings(ctx, tx, assetID)
+			if err != nil {
+				d.logger.ErrorContext(ctx, "failed to list asset findings",
+					logging.FieldScanID, scan.ID, logging.FieldAssetID, assetID, logging.FieldError, err)
+				return err
 			}
 
-			err = d.repo.PutAssetDiscoveryResult(ctx, tx, discoveryResult)
+			finding, ok := d.findingExists(currentFindings, port.Port, proto)
+			if ok {
+				finding.LastSeen = now
+			} else {
+				finding = &repository.AssetFinding{
+					ID:        uuid.New().String(),
+					AssetID:   assetID,
+					Type:      repository.FindingTypePort,
+					FirstSeen: now,
+					LastSeen:  now,
+				}
+				AttachPortData(finding, port.Port, proto)
+			}
+
+			err = d.repo.PutAssetFinding(ctx, tx, *finding)
 			if err != nil {
 				d.logger.ErrorContext(ctx, "failed to put asset discovery result",
-					logging.FieldScanID, scan.ID, logging.FieldAssetID, discoveryResult.AssetID, logging.FieldError, err)
+					logging.FieldScanID, scan.ID, logging.FieldAssetID, finding.AssetID, logging.FieldError, err)
 				return err
 			}
 		}
@@ -154,6 +169,18 @@ func (d NaabuScanner) findAssetID(assets []repository.ScanAsset, endpoint string
 		}
 	}
 	return ""
+}
+
+func (d NaabuScanner) findingExists(findings []repository.AssetFinding, port int, proto Protocol) (*repository.AssetFinding, bool) {
+	for _, finding := range findings {
+		findingPort := int(finding.Data["port"].(float64))
+		findingProto := Protocol(finding.Data["protocol"].(string))
+
+		if finding.Type == repository.FindingTypePort && findingPort == port && findingProto == proto {
+			return &finding, true
+		}
+	}
+	return nil, false
 }
 
 func NewNaabuScanner(repo repository.ScanRepository, pool *pgxpool.Pool) Scanner {

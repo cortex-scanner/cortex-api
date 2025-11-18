@@ -414,18 +414,16 @@ func (p PostgresScanRepository) UpdateScan(ctx context.Context, tx pgx.Tx, scanR
 	return nil
 }
 
-func (p PostgresScanRepository) PutAssetDiscoveryResult(ctx context.Context, tx pgx.Tx, result ScanAssetDiscoveryResult) error {
+func (p PostgresScanRepository) PutAssetFinding(ctx context.Context, tx pgx.Tx, result AssetFinding) error {
 	args := pgx.NamedArgs{
-		"asset_id": result.AssetID,
-		"port":     result.Port,
-		"protocol": result.Protocol,
+		"id": result.ID,
 	}
 
 	// check if already exists
 	row := tx.QueryRow(ctx, `
 		SELECT COUNT(*) 
-		FROM asset_discovery 
-		WHERE asset_id = @asset_id AND port = @port AND protocol = @protocol`, args)
+		FROM asset_findings 
+		WHERE id = @id`, args)
 
 	var count int
 	err := row.Scan(&count)
@@ -434,19 +432,20 @@ func (p PostgresScanRepository) PutAssetDiscoveryResult(ctx context.Context, tx 
 	}
 
 	args = pgx.NamedArgs{
+		"id":         result.ID,
 		"asset_id":   result.AssetID,
-		"port":       result.Port,
-		"protocol":   result.Protocol,
 		"first_seen": result.FirstSeen,
 		"last_seen":  result.LastSeen,
+		"type":       result.Type,
+		"data":       result.Data,
 	}
 
 	if count > 0 {
 		// update
 		_, err = tx.Exec(ctx, `
-			UPDATE asset_discovery 
+			UPDATE asset_findings 
 			SET last_seen = @last_seen 
-			WHERE asset_id = @asset_id AND port = @port AND protocol = @protocol`, args)
+			WHERE id = @id`, args)
 
 		if err != nil {
 			return err
@@ -454,8 +453,8 @@ func (p PostgresScanRepository) PutAssetDiscoveryResult(ctx context.Context, tx 
 	} else {
 		// insert
 		_, err = tx.Exec(ctx, `
-			INSERT INTO asset_discovery (asset_id, port, protocol, first_seen, last_seen) 
-			VALUES(@asset_id, @port, @protocol, @first_seen, @last_seen)`, args)
+			INSERT INTO asset_findings (id, asset_id, first_seen, last_seen, type, data)  
+			VALUES(@id, @asset_id, @first_seen, @last_seen, @type, @data)`, args)
 
 		if err != nil {
 			return err
@@ -465,27 +464,27 @@ func (p PostgresScanRepository) PutAssetDiscoveryResult(ctx context.Context, tx 
 	return nil
 }
 
-func (p PostgresScanRepository) ListAssetDiscoveryResults(ctx context.Context, tx pgx.Tx, assetID string) ([]ScanAssetDiscoveryResult, error) {
+func (p PostgresScanRepository) ListAssetFindings(ctx context.Context, tx pgx.Tx, assetID string) ([]AssetFinding, error) {
 	rows, err := tx.Query(ctx, `
 		SELECT * 
-		FROM asset_discovery 
+		FROM asset_findings 
 		WHERE asset_id = $1`, assetID)
 
 	if err != nil {
 		// return empty list if no identities are found
 		if errors.Is(err, pgx.ErrNoRows) {
 			// reset error to not trigger rollback
-			return []ScanAssetDiscoveryResult{}, nil
+			return []AssetFinding{}, nil
 		}
 		return nil, err
 	}
 	defer rows.Close()
 
-	var discoveryResults []ScanAssetDiscoveryResult
+	var discoveryResults []AssetFinding
 	for rows.Next() {
-		var discoveryResult ScanAssetDiscoveryResult
-		err = rows.Scan(&discoveryResult.AssetID, &discoveryResult.Port,
-			&discoveryResult.Protocol, &discoveryResult.FirstSeen, &discoveryResult.LastSeen)
+		var discoveryResult AssetFinding
+		err = rows.Scan(&discoveryResult.ID, &discoveryResult.AssetID, &discoveryResult.FirstSeen, &discoveryResult.LastSeen,
+			&discoveryResult.Type, &discoveryResult.Data)
 		if err != nil {
 			return nil, err
 		}
@@ -499,8 +498,9 @@ func (p PostgresScanRepository) GetAssetStats(ctx context.Context, tx pgx.Tx, as
 	// get number of discovered ports
 	row := tx.QueryRow(ctx, `
 		SELECT COUNT(*) 
-		FROM asset_discovery 
-		WHERE asset_id = $1`, assetID)
+		FROM asset_findings 
+		WHERE asset_id = $1
+		AND type = $2`, assetID, FindingTypePort)
 
 	var portCount int
 	err := row.Scan(&portCount)

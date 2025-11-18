@@ -36,7 +36,7 @@ type ScanService interface {
 	DeleteAsset(ctx context.Context, id string) (*repository.ScanAsset, error)
 	UpdateAsset(ctx context.Context, id string, newEndpoint string) (*repository.ScanAsset, error)
 
-	ListAssetDiscoveryResults(ctx context.Context, assetID string) ([]repository.ScanAssetDiscoveryResult, error)
+	ListAssetFindings(ctx context.Context, assetID string) ([]repository.AssetFinding, error)
 	ListAssetHistory(ctx context.Context, assetID string) ([]repository.AssetHistoryEntry, error)
 
 	RunScan(ctx context.Context, configID string, assetIds []string) (*repository.ScanExecution, error)
@@ -626,7 +626,7 @@ func (s scanService) UpdateScan(ctx context.Context, scanID string, update ScanU
 	return scan, nil
 }
 
-func (s scanService) ListAssetDiscoveryResults(ctx context.Context, assetID string) ([]repository.ScanAssetDiscoveryResult, error) {
+func (s scanService) ListAssetFindings(ctx context.Context, assetID string) ([]repository.AssetFinding, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return nil, err
@@ -640,7 +640,7 @@ func (s scanService) ListAssetDiscoveryResults(ctx context.Context, assetID stri
 		}
 	}()
 
-	results, err := s.repo.ListAssetDiscoveryResults(ctx, tx, assetID)
+	results, err := s.repo.ListAssetFindings(ctx, tx, assetID)
 	if err != nil {
 		s.logger.ErrorContext(ctx, "failed to list asset discovery results",
 			logging.FieldAssetID, assetID, logging.FieldError, err)
