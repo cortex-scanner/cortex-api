@@ -33,9 +33,14 @@ func (s ScanRunner) Scan(ctx context.Context, scan repository.ScanExecution, con
 		return errors.New("unsupported scan engine")
 	}
 
-	// just start scan for now
-	// TODO: run scan in goroutine
-	return scanner.Scan(ctx, scan, config)
+	go func() {
+		err := scanner.Scan(context.WithoutCancel(ctx), scan, config)
+		if err != nil {
+			s.logger.ErrorContext(ctx, "scan failed", logging.FieldScanID, scan.ID, logging.FieldError, err)
+		}
+	}()
+
+	return nil
 }
 
 func NewScanRunner(repo repository.ScanRepository, pool *pgxpool.Pool) *ScanRunner {

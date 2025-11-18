@@ -64,19 +64,18 @@ func (d NaabuScanner) Scan(ctx context.Context, scan repository.ScanExecution, c
 		return err
 	}
 	d.logger.InfoContext(ctx, "finished discovery scan", logging.FieldScanID, scan.ID)
-	d.logger.InfoContext(ctx, fmt.Sprintf("found %d open ports", len(results)))
+	d.logger.InfoContext(ctx, fmt.Sprintf("found %d open ports", len(results)), logging.FieldScanID, scan.ID)
 
 	tx, err := d.pool.Begin(ctx)
 	if err != nil {
 		return err
 	}
 	defer func() {
-		switch err {
-		case nil:
-			err = tx.Commit(ctx)
-		default:
+		if err != nil {
 			_ = tx.Rollback(ctx)
 		}
+
+		err = tx.Commit(ctx)
 	}()
 
 	// add changes to database
@@ -107,7 +106,7 @@ func (d NaabuScanner) Scan(ctx context.Context, scan repository.ScanExecution, c
 
 	// update scan status
 	scan.Status = repository.ScanStatusComplete
-	scan.EndTime = &now
+	scan.EndTime.Time = now
 	err = d.repo.UpdateScan(ctx, tx, scan)
 	if err != nil {
 		d.logger.ErrorContext(ctx, "failed to update scan",
@@ -115,6 +114,7 @@ func (d NaabuScanner) Scan(ctx context.Context, scan repository.ScanExecution, c
 			logging.FieldError, err)
 		return err
 	}
+	d.logger.DebugContext(ctx, "marked scan complete", logging.FieldScanID, scan.ID)
 
 	// update asset history for finished scan
 	userInfo, err := cortexContext.UserInfo(ctx)
@@ -128,7 +128,7 @@ func (d NaabuScanner) Scan(ctx context.Context, scan repository.ScanExecution, c
 			ID:      uuid.New().String(),
 			AssetID: asset.ID,
 			UserID:  userInfo.UserID,
-			Time:    *scan.EndTime,
+			Time:    scan.EndTime.Time,
 			Type:    repository.ScanAssetEventTypeScanEnded,
 			Data: map[string]any{
 				"scanId": scan.ID,

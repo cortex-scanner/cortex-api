@@ -9,6 +9,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const (
@@ -390,8 +391,8 @@ func (p PostgresScanRepository) UpdateScan(ctx context.Context, tx pgx.Tx, scanR
 	args := pgx.NamedArgs{
 		"id":              scanRun.ID,
 		"scan_config_id":  scanRun.ScanConfigurationID,
-		"scan_start_time": scanRun.StartTime,
-		"scan_end_time":   scanRun.EndTime,
+		"scan_start_time": scanRun.StartTime.Time,
+		"scan_end_time":   scanRun.EndTime.Time,
 		"status":          scanRun.Status,
 	}
 
@@ -514,15 +515,16 @@ func (p PostgresScanRepository) GetAssetStats(ctx context.Context, tx pgx.Tx, as
 			scans s
 		INNER JOIN public.scan_asset_map sam on s.id = sam.scan_id
 		WHERE sam.asset_id = $1
+		AND s.scan_end_time IS NOT NULL
 		ORDER BY s.scan_end_time DESC
 		LIMIT 1;
     `, assetID)
 
-	var lastDiscoveryTime time.Time
+	var lastDiscoveryTime pgtype.Timestamp
 	err = row.Scan(&lastDiscoveryTime)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			lastDiscoveryTime = time.Time{}
+			lastDiscoveryTime = pgtype.Timestamp{Time: time.Time{}}
 		} else {
 			return nil, err
 		}
@@ -530,7 +532,7 @@ func (p PostgresScanRepository) GetAssetStats(ctx context.Context, tx pgx.Tx, as
 
 	stats := ScanAssetStats{
 		DiscoveredPortsCount: portCount,
-		LastDiscovery:        lastDiscoveryTime,
+		LastDiscovery:        lastDiscoveryTime.Time,
 	}
 	return &stats, nil
 }

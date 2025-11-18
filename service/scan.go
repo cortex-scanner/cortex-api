@@ -11,6 +11,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -492,8 +493,7 @@ func (s scanService) RunScan(ctx context.Context, configID string, assetIds []st
 		ID:                  uuid.New().String(),
 		ScanConfigurationID: config.ID,
 		Status:              repository.ScanStatusRunning,
-		StartTime:           &now,
-		EndTime:             nil,
+		StartTime:           pgtype.Timestamp{Time: now},
 	}
 
 	// add assets to scan
@@ -605,10 +605,10 @@ func (s scanService) UpdateScan(ctx context.Context, scanID string, update ScanU
 
 	// apply updates
 	if !update.StartTime.Before(time.Date(1970, 1, 1, 2, 0, 0, 0, time.UTC)) {
-		scan.StartTime = &update.StartTime
+		scan.StartTime.Time = update.StartTime
 	}
 	if !update.EndTime.Before(time.Date(1970, 1, 1, 2, 0, 0, 0, time.UTC)) {
-		scan.EndTime = &update.EndTime
+		scan.EndTime.Time = update.EndTime
 	}
 	if update.Status != "" {
 		scan.Status = repository.ScanStatus(update.Status)

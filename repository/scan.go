@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 // ScanAsset defines a target endpoint for a scan
@@ -136,23 +137,23 @@ const (
 
 // ScanExecution represents metadata and status details for a single scan execution.
 type ScanExecution struct {
-	ID                  string      `json:"id"`
-	ScanConfigurationID string      `json:"scanConfigurationId"`
-	Status              ScanStatus  `json:"status"`
-	StartTime           *time.Time  `json:"startTime"`
-	EndTime             *time.Time  `json:"endTime"`
-	Assets              []ScanAsset `json:"assets"`
+	ID                  string           `json:"id"`
+	ScanConfigurationID string           `json:"scanConfigurationId"`
+	Status              ScanStatus       `json:"status"`
+	StartTime           pgtype.Timestamp `json:"startTime"`
+	EndTime             pgtype.Timestamp `json:"endTime"`
+	Assets              []ScanAsset      `json:"assets"`
 }
 
 func (s ScanExecution) MarshalJSON() ([]byte, error) {
 	startTime := int64(0)
-	if s.StartTime != nil {
-		startTime = s.StartTime.Unix()
+	if s.StartTime.Valid {
+		startTime = s.StartTime.Time.Unix()
 	}
 
 	endTime := int64(0)
-	if s.EndTime != nil {
-		endTime = s.EndTime.Unix()
+	if s.EndTime.Valid {
+		endTime = s.EndTime.Time.Unix()
 	}
 
 	data := struct {
