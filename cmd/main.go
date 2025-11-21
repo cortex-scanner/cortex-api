@@ -74,6 +74,7 @@ func main() {
 	scanService := service.NewScanService(scanRepo, pool)
 	authService := service.NewAuthService(authRepo, agentRepo, pool)
 	agentService := service.NewAgentService(agentRepo, pool)
+	findingService := service.NewFindingService(scanRepo, pool)
 
 	// create initial agent if specified
 	if appConfig.AgentToken != "" {
@@ -86,11 +87,12 @@ func main() {
 
 	// start api server
 	serverOptions := ServerOptions{
-		ListenAddress: appConfig.ListenAddress,
-		CorsOrigin:    appConfig.CORSOrigin,
-		ScanService:   scanService,
-		AuthService:   authService,
-		AgentService:  agentService,
+		ListenAddress:  appConfig.ListenAddress,
+		CorsOrigin:     appConfig.CORSOrigin,
+		ScanService:    scanService,
+		AuthService:    authService,
+		AgentService:   agentService,
+		FindingService: findingService,
 	}
 
 	logger.Debug("allowed CORS origin: " + appConfig.CORSOrigin)

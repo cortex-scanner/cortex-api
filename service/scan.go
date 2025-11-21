@@ -5,7 +5,6 @@ import (
 	cortexContext "cortex/context"
 	"cortex/logging"
 	"cortex/repository"
-	"cortex/scanner"
 	"log/slog"
 	"time"
 
@@ -46,10 +45,9 @@ type ScanService interface {
 }
 
 type scanService struct {
-	repo       repository.ScanRepository
-	logger     *slog.Logger
-	scanRunner *scanner.ScanRunner
-	pool       *pgxpool.Pool
+	repo   repository.ScanRepository
+	logger *slog.Logger
+	pool   *pgxpool.Pool
 }
 
 func (s scanService) ListScanConfigs(ctx context.Context) ([]repository.ScanConfiguration, error) {
@@ -492,7 +490,7 @@ func (s scanService) RunScan(ctx context.Context, configID string, assetIds []st
 	scan := repository.ScanExecution{
 		ID:                  uuid.New().String(),
 		ScanConfigurationID: config.ID,
-		Status:              repository.ScanStatusRunning,
+		Status:              repository.ScanStatusQueued,
 		StartTime:           pgtype.Timestamp{Time: now},
 	}
 
@@ -523,14 +521,6 @@ func (s scanService) RunScan(ctx context.Context, configID string, assetIds []st
 	err = tx.Commit(ctx)
 	if err != nil {
 		s.logger.ErrorContext(ctx, "failed to commit transaction when creating scan", logging.FieldError, err)
-		return nil, err
-	}
-
-	// run scan
-	err = s.scanRunner.Scan(ctx, scan, *config)
-	if err != nil {
-		s.logger.ErrorContext(ctx, "failed to run scan",
-			logging.FieldError, err)
 		return nil, err
 	}
 
@@ -674,9 +664,8 @@ func (s scanService) ListAssetHistory(ctx context.Context, assetID string) ([]re
 
 func NewScanService(scanRepo repository.ScanRepository, pool *pgxpool.Pool) ScanService {
 	return scanService{
-		repo:       scanRepo,
-		logger:     logging.GetLogger(logging.DataAccess),
-		scanRunner: scanner.NewScanRunner(scanRepo, pool),
-		pool:       pool,
+		repo:   scanRepo,
+		logger: logging.GetLogger(logging.DataAccess),
+		pool:   pool,
 	}
 }

@@ -80,30 +80,33 @@ const (
 )
 
 type AssetFinding struct {
-	ID        string         `json:"id"`
-	AssetID   string         `json:"assetId"`
-	FirstSeen time.Time      `json:"firstSeen"`
-	LastSeen  time.Time      `json:"lastSeen"`
-	Type      FindingType    `json:"type"`
-	Data      map[string]any `json:"data"`
+	ID          string         `json:"id"`
+	AssetID     string         `json:"assetId"`
+	CreatedAt   time.Time      `json:"createdAT"`
+	Type        FindingType    `json:"type"`
+	Data        map[string]any `json:"data"`
+	FindingHash string         `json:"findingHash"`
+	AgentID     string         `json:"agentId"`
 }
 
 func (f AssetFinding) MarshalJSON() ([]byte, error) {
 	// marshal with time.Time to unix
 	data := struct {
-		ID        string         `json:"id"`
-		AssetID   string         `json:"assetId"`
-		FirstSeen int64          `json:"firstSeen"`
-		LastSeen  int64          `json:"lastSeen"`
-		Type      FindingType    `json:"type"`
-		Data      map[string]any `json:"data"`
+		ID          string         `json:"id"`
+		AssetID     string         `json:"assetId"`
+		CreatedAt   int64          `json:"createdAt"`
+		Type        FindingType    `json:"type"`
+		Data        map[string]any `json:"data"`
+		FindingHash string         `json:"findingHash"`
+		AgentID     string         `json:"agentId"`
 	}{
-		ID:        f.ID,
-		AssetID:   f.AssetID,
-		FirstSeen: f.FirstSeen.Unix(),
-		LastSeen:  f.LastSeen.Unix(),
-		Type:      f.Type,
-		Data:      f.Data,
+		ID:          f.ID,
+		AssetID:     f.AssetID,
+		CreatedAt:   f.CreatedAt.Unix(),
+		Type:        f.Type,
+		Data:        f.Data,
+		FindingHash: f.FindingHash,
+		AgentID:     f.AgentID,
 	}
 
 	return json.Marshal(data)

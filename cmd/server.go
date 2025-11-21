@@ -20,30 +20,33 @@ import (
 )
 
 type ServerOptions struct {
-	ListenAddress string
-	CorsOrigin    string
-	ScanService   service.ScanService
-	AuthService   service.AuthService
-	AgentService  service.AgentService
+	ListenAddress  string
+	CorsOrigin     string
+	ScanService    service.ScanService
+	AuthService    service.AuthService
+	AgentService   service.AgentService
+	FindingService service.FindingService
 }
 
 type Server struct {
-	ListenAddress string
-	router        chi.Router
-	corsOrigin    string
-	scanService   service.ScanService
-	authService   service.AuthService
-	agentService  service.AgentService
+	ListenAddress  string
+	router         chi.Router
+	corsOrigin     string
+	scanService    service.ScanService
+	authService    service.AuthService
+	agentService   service.AgentService
+	findingService service.FindingService
 }
 
 func NewServer(opts ServerOptions) *Server {
 	return &Server{
-		ListenAddress: opts.ListenAddress,
-		router:        chi.NewRouter(),
-		corsOrigin:    opts.CorsOrigin,
-		scanService:   opts.ScanService,
-		authService:   opts.AuthService,
-		agentService:  opts.AgentService,
+		ListenAddress:  opts.ListenAddress,
+		router:         chi.NewRouter(),
+		corsOrigin:     opts.CorsOrigin,
+		scanService:    opts.ScanService,
+		authService:    opts.AuthService,
+		agentService:   opts.AgentService,
+		findingService: opts.FindingService,
 	}
 }
 
@@ -70,7 +73,7 @@ func (s *Server) Start() {
 	s.router.Use(chiMiddleware.Recoverer)
 
 	// setup handlers
-	assetHandler := handler.NewAssetHandler(s.scanService)
+	assetHandler := handler.NewAssetHandler(s.scanService, s.findingService)
 	scanConfigHandler := handler.NewScanConfigHandler(s.scanService)
 	scanHandler := handler.NewScanHandler(s.scanService)
 	userHandler := handler.NewUserHandler(s.authService)
@@ -92,6 +95,7 @@ func (s *Server) Start() {
 		r.Put("/assets/{id}", handler.Make(assetHandler.HandleUpdate))
 		r.Delete("/assets/{id}", handler.Make(assetHandler.HandleDelete))
 		r.Get("/assets/{id}/findings", handler.Make(assetHandler.HandleListAssetFindings))
+		r.Post("/assets/{id}/findings", handler.Make(assetHandler.HandleCreateFinding))
 		r.Get("/assets/{id}/history", handler.Make(assetHandler.HandleListAssetHistory))
 
 		// scan config routes

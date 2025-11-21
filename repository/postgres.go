@@ -419,46 +419,22 @@ func (p PostgresScanRepository) PutAssetFinding(ctx context.Context, tx pgx.Tx, 
 		"id": result.ID,
 	}
 
-	// check if already exists
-	row := tx.QueryRow(ctx, `
-		SELECT COUNT(*) 
-		FROM asset_findings 
-		WHERE id = @id`, args)
+	args = pgx.NamedArgs{
+		"id":           result.ID,
+		"asset_id":     result.AssetID,
+		"created_at":   result.CreatedAt,
+		"type":         result.Type,
+		"data":         result.Data,
+		"finding_hash": result.FindingHash,
+		"agent_id":     result.AgentID,
+	}
+	// insert
+	_, err := tx.Exec(ctx, `
+			INSERT INTO asset_findings (id, asset_id, created_at, type, data, finding_hash, agent_id)   
+			VALUES(@id, @asset_id, @created_at, @type, @data, @finding_hash, @agent_id)`, args)
 
-	var count int
-	err := row.Scan(&count)
 	if err != nil {
 		return err
-	}
-
-	args = pgx.NamedArgs{
-		"id":         result.ID,
-		"asset_id":   result.AssetID,
-		"first_seen": result.FirstSeen,
-		"last_seen":  result.LastSeen,
-		"type":       result.Type,
-		"data":       result.Data,
-	}
-
-	if count > 0 {
-		// update
-		_, err = tx.Exec(ctx, `
-			UPDATE asset_findings 
-			SET last_seen = @last_seen 
-			WHERE id = @id`, args)
-
-		if err != nil {
-			return err
-		}
-	} else {
-		// insert
-		_, err = tx.Exec(ctx, `
-			INSERT INTO asset_findings (id, asset_id, first_seen, last_seen, type, data)  
-			VALUES(@id, @asset_id, @first_seen, @last_seen, @type, @data)`, args)
-
-		if err != nil {
-			return err
-		}
 	}
 
 	return nil
@@ -483,8 +459,8 @@ func (p PostgresScanRepository) ListAssetFindings(ctx context.Context, tx pgx.Tx
 	var discoveryResults []AssetFinding
 	for rows.Next() {
 		var discoveryResult AssetFinding
-		err = rows.Scan(&discoveryResult.ID, &discoveryResult.AssetID, &discoveryResult.FirstSeen, &discoveryResult.LastSeen,
-			&discoveryResult.Type, &discoveryResult.Data)
+		err = rows.Scan(&discoveryResult.ID, &discoveryResult.AssetID, &discoveryResult.CreatedAt,
+			&discoveryResult.Type, &discoveryResult.Data, &discoveryResult.FindingHash, &discoveryResult.AgentID)
 		if err != nil {
 			return nil, err
 		}

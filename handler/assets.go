@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"cortex/repository"
 	"cortex/service"
 	"net/http"
 
@@ -16,15 +17,22 @@ type updateAssetRequestBody struct {
 	Endpoint string `json:"endpoint" validate:"required,max=2048"`
 }
 
-type AssetHandler struct {
-	validate    *validator.Validate
-	scanService service.ScanService
+type createAssetFindingBody struct {
+	Type string `json:"type" validate:"required,oneof=port"`
+	Data map[string]any
 }
 
-func NewAssetHandler(scanService service.ScanService) *AssetHandler {
+type AssetHandler struct {
+	validate       *validator.Validate
+	scanService    service.ScanService
+	findingService service.FindingService
+}
+
+func NewAssetHandler(scanService service.ScanService, findingService service.FindingService) *AssetHandler {
 	return &AssetHandler{
-		scanService: scanService,
-		validate:    validator.New(validator.WithRequiredStructEnabled()),
+		scanService:    scanService,
+		findingService: findingService,
+		validate:       validator.New(validator.WithRequiredStructEnabled()),
 	}
 }
 
@@ -147,6 +155,36 @@ func (h AssetHandler) HandleListAssetFindings(w http.ResponseWriter, r *http.Req
 	if err = RespondMany(w, r, results); err != nil {
 		return WrapError(err)
 	}
+	return nil
+}
+
+func (h AssetHandler) HandleCreateFinding(w http.ResponseWriter, r *http.Request) error {
+	assetId := r.PathValue("id")
+	var requestBody createAssetFindingBody
+	if err := ParseAndValidateBody(&requestBody, r, h.validate); err != nil {
+		return WrapError(err)
+	}
+
+	// check if asset exists
+	_, err := h.scanService.GetAsset(r.Context(), assetId)
+	if err != nil {
+		return WrapError(err)
+	}
+
+	finding, err := h.findingService.CreateFinding(r.Context(), service.CreateFindingOptions{
+		AssetID: assetId,
+		Type:    repository.FindingType(requestBody.Type),
+		Data:    requestBody.Data,
+	})
+
+	if err != nil {
+		return WrapError(err)
+	}
+
+	if err = RespondOneCreated(w, r, finding); err != nil {
+		return WrapError(err)
+	}
+
 	return nil
 }
 
