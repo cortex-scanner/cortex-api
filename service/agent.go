@@ -5,6 +5,7 @@ import (
 	"cortex/crypto"
 	"cortex/logging"
 	"cortex/repository"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
@@ -16,6 +17,7 @@ type AgentService interface {
 	ListAgents(ctx context.Context) ([]repository.Agent, error)
 	GetAgent(ctx context.Context, id string) (*repository.Agent, error)
 	CreateAgent(ctx context.Context, name string) (*repository.Agent, string, error)
+	CreateAgentWithToken(ctx context.Context, tokenPlain string, name string) (*repository.Agent, error)
 	UpdateAgent(ctx context.Context, id string, name string) (*repository.Agent, error)
 	DeleteAgent(ctx context.Context, id string) (*repository.Agent, error)
 }
@@ -24,6 +26,67 @@ type agentService struct {
 	logger *slog.Logger
 	repo   repository.AgentRepository
 	pool   *pgxpool.Pool
+}
+
+func (s agentService) CreateAgentWithToken(ctx context.Context, tokenPlain string, name string) (*repository.Agent, error) {
+	// Parse the token to extract the secret part for hashing
+	tokenComponents, err := parseTokenString(tokenPlain)
+	if err != nil {
+		s.logger.ErrorContext(ctx, "failed to parse token string", logging.FieldError, err)
+		return nil, fmt.Errorf("invalid token format: %w", err)
+	}
+
+	s.logger.DebugContext(ctx, fmt.Sprintf("creating agent with token id %s", tokenComponents.id))
+
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		switch err {
+		case nil:
+			err = tx.Commit(ctx)
+		default:
+			_ = tx.Rollback(ctx)
+		}
+	}()
+
+	// Check if agent with this token ID already exists
+	existingAgent, err := s.repo.GetAgent(ctx, tx, tokenComponents.id)
+	if err != nil && !errors.Is(err, repository.ErrNotFound) {
+		s.logger.ErrorContext(ctx, "failed to check for existing agent", logging.FieldError, err)
+		return nil, err
+	}
+
+	// If agent exists, return it
+	if existingAgent != nil {
+		s.logger.DebugContext(ctx, fmt.Sprintf("agent with id %s already exists, returning existing agent", tokenComponents.id))
+		return existingAgent, nil
+	}
+
+	// Hash the token secret
+	hash, err := crypto.CalculateArgonHash(tokenComponents.secret)
+	if err != nil {
+		s.logger.ErrorContext(ctx, "failed to calculate token hash", logging.FieldError, err)
+		return nil, err
+	}
+
+	// Create new agent
+	agent := repository.Agent{
+		ID:        tokenComponents.id,
+		Name:      name,
+		TokenHash: hash,
+		CreatedAt: time.Now(),
+	}
+
+	err = s.repo.CreateAgent(ctx, tx, agent)
+	if err != nil {
+		s.logger.ErrorContext(ctx, "failed to create agent", logging.FieldError, err)
+		return nil, err
+	}
+
+	s.logger.InfoContext(ctx, fmt.Sprintf("created agent %s with id %s", name, agent.ID))
+	return &agent, nil
 }
 
 func (s agentService) ListAgents(ctx context.Context) ([]repository.Agent, error) {

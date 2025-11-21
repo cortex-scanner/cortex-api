@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"cortex/logging"
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"time"
@@ -17,6 +18,19 @@ type Agent struct {
 	TokenHash string    `json:"-"`
 	CreatedAt time.Time `json:"createdAt"`
 }
+
+func (a Agent) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		ID        string `json:"id"`
+		Name      string `json:"name"`
+		CreatedAt int64  `json:"createdAt"`
+	}{
+		ID:        a.ID,
+		Name:      a.Name,
+		CreatedAt: a.CreatedAt.Unix(),
+	})
+}
+
 type AgentRepository interface {
 	ListAgents(ctx context.Context, tx pgx.Tx) ([]Agent, error)
 	GetAgent(ctx context.Context, tx pgx.Tx, id string) (*Agent, error)

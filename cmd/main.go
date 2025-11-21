@@ -25,6 +25,8 @@ type AppConfig struct {
 	Environment              string     `env:"CORTEX_ENVIRONMENT"`
 	CORSOrigin               string     `env:"CORTEX_CORS_ALLOWED_ORIGIN"`
 	PostgresConnectionString string     `env:"CORTEX_POSTGRES_CONNECTION_STRING"`
+	// format should be id.secret with id being a 4 byte hex string and secret being a 16 byte hex string
+	AgentToken string `env:"CORTEX_AGENT_TOKEN"`
 }
 
 func main() {
@@ -72,6 +74,15 @@ func main() {
 	scanService := service.NewScanService(scanRepo, pool)
 	authService := service.NewAuthService(authRepo, agentRepo, pool)
 	agentService := service.NewAgentService(agentRepo, pool)
+
+	// create initial agent if specified
+	if appConfig.AgentToken != "" {
+		_, err := agentService.CreateAgentWithToken(context.Background(), appConfig.AgentToken, "Default")
+		if err != nil {
+			logger.Error("failed to create default agent", logging.FieldError, err)
+			os.Exit(1)
+		}
+	}
 
 	// start api server
 	serverOptions := ServerOptions{
