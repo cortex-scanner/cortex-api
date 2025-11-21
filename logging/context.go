@@ -15,6 +15,7 @@ const (
 	FieldUserID       string = "userId"
 	FieldUsername     string = "username"
 	FieldTokenID      string = "tokenId"
+	FieldAgentID      string = "agentId"
 )
 
 type ContextHandler struct {
@@ -31,6 +32,12 @@ func (h ContextHandler) Handle(ctx context.Context, r slog.Record) error {
 			slog.String(FieldUserID, val.UserID),
 			slog.String(FieldUsername, val.Username),
 			slog.String(FieldTokenID, val.TokenID),
+		)
+	}
+
+	if val, ok := ctx.Value(cortexContext.KeyAgentInfo).(cortexContext.AgentInfoData); ok {
+		r.AddAttrs(
+			slog.String(FieldAgentID, val.AgentID),
 		)
 	}
 
