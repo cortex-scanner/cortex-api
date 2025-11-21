@@ -71,6 +71,7 @@ func main() {
 
 	scanService := service.NewScanService(scanRepo, pool)
 	authService := service.NewAuthService(authRepo, agentRepo, pool)
+	agentService := service.NewAgentService(agentRepo, pool)
 
 	// start api server
 	serverOptions := ServerOptions{
@@ -78,6 +79,7 @@ func main() {
 		CorsOrigin:    appConfig.CORSOrigin,
 		ScanService:   scanService,
 		AuthService:   authService,
+		AgentService:  agentService,
 	}
 
 	logger.Debug("allowed CORS origin: " + appConfig.CORSOrigin)

@@ -24,6 +24,7 @@ type ServerOptions struct {
 	CorsOrigin    string
 	ScanService   service.ScanService
 	AuthService   service.AuthService
+	AgentService  service.AgentService
 }
 
 type Server struct {
@@ -32,6 +33,7 @@ type Server struct {
 	corsOrigin    string
 	scanService   service.ScanService
 	authService   service.AuthService
+	agentService  service.AgentService
 }
 
 func NewServer(opts ServerOptions) *Server {
@@ -41,6 +43,7 @@ func NewServer(opts ServerOptions) *Server {
 		corsOrigin:    opts.CorsOrigin,
 		scanService:   opts.ScanService,
 		authService:   opts.AuthService,
+		agentService:  opts.AgentService,
 	}
 }
 
@@ -72,6 +75,7 @@ func (s *Server) Start() {
 	scanHandler := handler.NewScanHandler(s.scanService)
 	userHandler := handler.NewUserHandler(s.authService)
 	authHandler := handler.NewAuthHandler(s.authService)
+	agentHandler := handler.NewAgentHandler(s.agentService)
 
 	// register public routes
 	s.router.Get("/health", handler.Make(handler.HandleHealth))
@@ -106,6 +110,13 @@ func (s *Server) Start() {
 		// users
 		r.Get("/users", handler.Make(userHandler.HandleListUsers))
 		r.Get("/users/{id}", handler.Make(userHandler.HandleGetUser))
+
+		// agents
+		r.Get("/agents", handler.Make(agentHandler.HandleListAgents))
+		r.Get("/agents/{id}", handler.Make(agentHandler.HandleGetAgent))
+		r.Post("/agents", handler.Make(agentHandler.HandleCreateAgent))
+		r.Patch("/agents/{id}", handler.Make(agentHandler.HandleUpdateAgent))
+		r.Delete("/agents/{id}", handler.Make(agentHandler.HandleDeleteAgent))
 
 		// auth
 		r.Get("/auth", handler.Make(authHandler.HandleValidateToken))
