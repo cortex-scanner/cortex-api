@@ -416,10 +416,6 @@ func (p PostgresScanRepository) UpdateScan(ctx context.Context, tx pgx.Tx, scanR
 
 func (p PostgresScanRepository) PutAssetFinding(ctx context.Context, tx pgx.Tx, result AssetFinding) error {
 	args := pgx.NamedArgs{
-		"id": result.ID,
-	}
-
-	args = pgx.NamedArgs{
 		"id":           result.ID,
 		"asset_id":     result.AssetID,
 		"created_at":   result.CreatedAt,
