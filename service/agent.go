@@ -183,7 +183,7 @@ func (s agentService) DeleteAgent(ctx context.Context, id string) (*repository.A
 func NewAgentService(agentRepo repository.AgentRepository, pool *pgxpool.Pool) AgentService {
 	return &agentService{
 		repo:   agentRepo,
-		logger: logging.GetLogger(logging.DataAccess),
+		logger: logging.GetLogger(logging.Agent),
 		pool:   pool,
 	}
 }

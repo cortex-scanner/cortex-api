@@ -67,9 +67,10 @@ func main() {
 	// setup services
 	scanRepo := repository.NewPostgresScanRepository()
 	authRepo := repository.NewPostgresAuthRepository()
+	agentRepo := repository.NewPostgresAgentRepository()
 
 	scanService := service.NewScanService(scanRepo, pool)
-	authService := service.NewAuthService(authRepo, pool)
+	authService := service.NewAuthService(authRepo, agentRepo, pool)
 
 	// start api server
 	serverOptions := ServerOptions{

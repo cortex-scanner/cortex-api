@@ -29,12 +29,61 @@ type AuthService interface {
 	ValidateToken(ctx context.Context, tokenString string) (*repository.User, string, error)
 	CreateSessionToken(ctx context.Context, opt CreateTokenOptions) (*repository.AuthToken, string, error)
 	RevokeToken(ctx context.Context, tokenString string) error
+
+	ValidateAgentToken(ctx context.Context, tokenString string) (*repository.Agent, error)
 }
 
 type authService struct {
-	logger *slog.Logger
-	repo   repository.AuthRepository
-	pool   *pgxpool.Pool
+	logger         *slog.Logger
+	authRepository repository.AuthRepository
+	agentRepo      repository.AgentRepository
+	pool           *pgxpool.Pool
+}
+
+func (s authService) ValidateAgentToken(ctx context.Context, tokenString string) (*repository.Agent, error) {
+	components, err := parseTokenString(tokenString)
+	if err != nil {
+		return nil, err
+	}
+
+	s.logger.DebugContext(ctx, fmt.Sprintf("validating agent token %s", components.id))
+
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		switch err {
+		case nil:
+			err = tx.Commit(ctx)
+		default:
+			_ = tx.Rollback(ctx)
+		}
+	}()
+
+	agent, err := s.agentRepo.GetAgent(ctx, tx, components.id)
+	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			s.logger.WarnContext(ctx, fmt.Sprintf("unknown agent token %s", components.id))
+			return nil, ErrUnauthenticated
+		}
+		return nil, err
+	}
+
+	// validate hash
+	match, err := crypto.ValidatePasswordWithArgonHash(components.secret, agent.TokenHash)
+	if err != nil {
+		s.logger.DebugContext(ctx, "failed to validate agent token", logging.FieldError, err)
+		return nil, ErrUnauthenticated
+	}
+	if !match {
+		s.logger.DebugContext(ctx, fmt.Sprintf("agent token %s failed validation", agent.ID))
+		return nil, ErrUnauthenticated
+	}
+
+	s.logger.DebugContext(ctx, fmt.Sprintf("authentication request for agent %s (%s) using id %s is valid",
+		agent.ID, agent.Name, agent.ID))
+	return agent, nil
 }
 
 func (s authService) CheckUsernamePassword(ctx context.Context, username string, password string) (*repository.User, error) {
@@ -52,7 +101,7 @@ func (s authService) CheckUsernamePassword(ctx context.Context, username string,
 	}()
 
 	// get user
-	user, err := s.repo.GetUserByUsername(ctx, tx, username)
+	user, err := s.authRepository.GetUserByUsername(ctx, tx, username)
 	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
 			s.logger.WarnContext(ctx, fmt.Sprintf("authentication request for unknown user %s", username))
@@ -94,7 +143,7 @@ func (s authService) ValidateToken(ctx context.Context, tokenString string) (*re
 		}
 	}()
 
-	authToken, err := s.repo.GetToken(ctx, tx, components.id)
+	authToken, err := s.authRepository.GetToken(ctx, tx, components.id)
 	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
 			s.logger.WarnContext(ctx, fmt.Sprintf("unknown token %s", components.id))
@@ -120,7 +169,7 @@ func (s authService) ValidateToken(ctx context.Context, tokenString string) (*re
 		return nil, "", ErrUnauthenticated
 	}
 
-	user, err := s.repo.GetUser(ctx, tx, authToken.UserID)
+	user, err := s.authRepository.GetUser(ctx, tx, authToken.UserID)
 	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
 			s.logger.WarnContext(ctx, fmt.Sprintf("unknown user %s for token", authToken.UserID))
@@ -151,7 +200,7 @@ func (s authService) CreateSessionToken(ctx context.Context, opt CreateTokenOpti
 	}()
 
 	// check if user exists first
-	_, err = s.repo.GetUser(ctx, tx, opt.UserID)
+	_, err = s.authRepository.GetUser(ctx, tx, opt.UserID)
 	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
 			s.logger.WarnContext(ctx, fmt.Sprintf("requested to create token for unknown user id %s", opt.UserID))
@@ -180,7 +229,7 @@ func (s authService) CreateSessionToken(ctx context.Context, opt CreateTokenOpti
 		ExpiresAt: expiration,
 	}
 
-	err = s.repo.StoreToken(ctx, tx, &authToken)
+	err = s.authRepository.StoreToken(ctx, tx, &authToken)
 	if err != nil {
 		s.logger.ErrorContext(ctx, "failed to create token", logging.FieldError, err)
 		return nil, "", err
@@ -211,7 +260,7 @@ func (s authService) RevokeToken(ctx context.Context, tokenString string) error 
 		}
 	}()
 
-	err = s.repo.DeleteToken(ctx, tx, components.id)
+	err = s.authRepository.DeleteToken(ctx, tx, components.id)
 	if err != nil {
 		s.logger.ErrorContext(ctx, "failed to delete token", logging.FieldError, err)
 		return err
@@ -235,7 +284,7 @@ func (s authService) ListUsers(ctx context.Context) ([]repository.User, error) {
 		}
 	}()
 
-	users, err := s.repo.ListUsers(ctx, tx)
+	users, err := s.authRepository.ListUsers(ctx, tx)
 	if err != nil {
 		s.logger.ErrorContext(ctx, "failed to list users", logging.FieldError, err)
 		return nil, err
@@ -257,7 +306,7 @@ func (s authService) GetUser(ctx context.Context, id string) (*repository.User, 
 		}
 	}()
 
-	user, err := s.repo.GetUser(ctx, tx, id)
+	user, err := s.authRepository.GetUser(ctx, tx, id)
 	if err != nil {
 		s.logger.ErrorContext(ctx, "failed to get user",
 			logging.FieldUserID, id,
@@ -267,10 +316,11 @@ func (s authService) GetUser(ctx context.Context, id string) (*repository.User, 
 	return user, nil
 }
 
-func NewAuthService(authRepo repository.AuthRepository, pool *pgxpool.Pool) AuthService {
+func NewAuthService(authRepo repository.AuthRepository, agentRepo repository.AgentRepository, pool *pgxpool.Pool) AuthService {
 	return authService{
-		repo:   authRepo,
-		logger: logging.GetLogger(logging.Auth),
-		pool:   pool,
+		authRepository: authRepo,
+		agentRepo:      agentRepo,
+		logger:         logging.GetLogger(logging.Auth),
+		pool:           pool,
 	}
 }
