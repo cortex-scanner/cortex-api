@@ -18,8 +18,8 @@ type updateAssetRequestBody struct {
 }
 
 type createAssetFindingBody struct {
-	Type string `json:"type" validate:"required,oneof=port"`
-	Data map[string]any
+	Type string                 `json:"type"`
+	Data map[string]interface{} `json:"data"`
 }
 
 type AssetHandler struct {

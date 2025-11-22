@@ -162,7 +162,6 @@ func (s ScanExecution) MarshalJSON() ([]byte, error) {
 	data := struct {
 		ID                  string      `json:"id"`
 		ScanConfigurationID string      `json:"scanConfigurationId"`
-		Type                ScanType    `json:"type"`
 		Status              ScanStatus  `json:"status"`
 		StartTime           int64       `json:"startTime"`
 		EndTime             int64       `json:"endTime"`

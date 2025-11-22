@@ -6,6 +6,7 @@ import (
 	"cortex/logging"
 	"cortex/repository"
 	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"hash"
@@ -119,7 +120,7 @@ func (c *findingHashCalculator) calculateHash() (string, error) {
 		return "", errors.New("unable to calculate finding hash: " + errorString)
 	}
 
-	return string(c.hashFunc.Sum(nil)), nil
+	return hex.EncodeToString(c.hashFunc.Sum(nil)), nil
 }
 
 func newFindingHashCalculator(data map[string]any) *findingHashCalculator {
