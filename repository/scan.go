@@ -82,7 +82,7 @@ const (
 type AssetFinding struct {
 	ID          string         `json:"id"`
 	AssetID     string         `json:"assetId"`
-	CreatedAt   time.Time      `json:"createdAT"`
+	CreatedAt   time.Time      `json:"createdAt"`
 	Type        FindingType    `json:"type"`
 	Data        map[string]any `json:"data"`
 	FindingHash string         `json:"findingHash"`

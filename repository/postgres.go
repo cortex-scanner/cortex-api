@@ -338,7 +338,7 @@ func (p PostgresScanRepository) GetScan(ctx context.Context, tx pgx.Tx, id strin
 	// get assets associated with scan
 	var assets []ScanAsset
 	row = tx.QueryRow(ctx, `
-		SELECT *
+		SELECT id, endpoint
 		FROM assets
 		INNER JOIN public.scan_asset_map sam on assets.id = sam.asset_id
 		WHERE sam.scan_id = $1;
@@ -469,7 +469,7 @@ func (p PostgresScanRepository) ListAssetFindings(ctx context.Context, tx pgx.Tx
 func (p PostgresScanRepository) GetAssetStats(ctx context.Context, tx pgx.Tx, assetID string) (*ScanAssetStats, error) {
 	// get number of discovered ports
 	row := tx.QueryRow(ctx, `
-		SELECT COUNT(*) 
+		SELECT COUNT(DISTINCT finding_hash) 
 		FROM asset_findings 
 		WHERE asset_id = $1
 		AND type = $2`, assetID, FindingTypePort)
