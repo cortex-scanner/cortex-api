@@ -83,6 +83,9 @@ func (s findingService) calculateFindingHash(findingType repository.FindingType,
 	switch findingType {
 	case repository.FindingTypePort:
 		return calculator.addField("port").addField("protocol").calculateHash()
+	case repository.FindingTypeVulnerability:
+		return calculator.addField("template-id").addField("port").calculateHash()
+
 	}
 	return "", errors.New("unsupported finding type")
 }

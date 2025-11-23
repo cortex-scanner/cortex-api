@@ -76,7 +76,8 @@ func (a AssetHistoryEntry) MarshalJSON() ([]byte, error) {
 type FindingType string
 
 const (
-	FindingTypePort FindingType = "port"
+	FindingTypePort          FindingType = "port"
+	FindingTypeVulnerability FindingType = "vulnerability"
 )
 
 type AssetFinding struct {
