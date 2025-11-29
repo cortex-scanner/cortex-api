@@ -436,6 +436,25 @@ func (p PostgresScanRepository) PutAssetFinding(ctx context.Context, tx pgx.Tx, 
 	return nil
 }
 
+func (p PostgresScanRepository) GetAssetFinding(ctx context.Context, tx pgx.Tx, id string) (*AssetFinding, error) {
+	row := tx.QueryRow(ctx, `
+		SELECT * 
+		FROM asset_findings 
+		WHERE id = $1`, id)
+
+	var finding AssetFinding
+	err := row.Scan(&finding.ID, &finding.AssetID, &finding.CreatedAt,
+		&finding.Type, &finding.Data, &finding.FindingHash, &finding.AgentID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+
+	return &finding, nil
+}
+
 func (p PostgresScanRepository) ListAssetFindings(ctx context.Context, tx pgx.Tx, assetID string) ([]AssetFinding, error) {
 	rows, err := tx.Query(ctx, `
 		SELECT * 
@@ -502,9 +521,39 @@ func (p PostgresScanRepository) GetAssetStats(ctx context.Context, tx pgx.Tx, as
 		}
 	}
 
+	// find highest vulnerability severity
+	row = tx.QueryRow(ctx, `
+		SELECT data->'info'->>'severity'
+		FROM asset_findings
+		WHERE asset_id = $1
+		AND type = $2
+		AND data->'info'->>'severity' IS NOT NULL
+		ORDER BY 
+			CASE data->'info'->>'severity'
+				WHEN 'critical' THEN 5
+				WHEN 'high' THEN 4
+				WHEN 'medium' THEN 3
+				WHEN 'low' THEN 2
+				WHEN 'info' THEN 1
+				ELSE 0
+			END DESC
+		LIMIT 1;
+	`, assetID, FindingTypeVulnerability)
+
+	var highestSeverity string
+	err = row.Scan(&highestSeverity)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			highestSeverity = string(SeverityInfo)
+		} else {
+			return nil, err
+		}
+	}
+
 	stats := ScanAssetStats{
-		DiscoveredPortsCount: portCount,
-		LastDiscovery:        lastDiscoveryTime.Time,
+		DiscoveredPortsCount:         portCount,
+		LastDiscovery:                lastDiscoveryTime.Time,
+		HighestVulnerabilitySeverity: Severity(highestSeverity),
 	}
 	return &stats, nil
 }

@@ -16,17 +16,20 @@ type ScanAsset struct {
 }
 
 type ScanAssetStats struct {
-	DiscoveredPortsCount int       `json:"discoveredPortsCount"`
-	LastDiscovery        time.Time `json:"lastDiscovery"`
+	DiscoveredPortsCount         int       `json:"discoveredPortsCount"`
+	LastDiscovery                time.Time `json:"lastDiscovery"`
+	HighestVulnerabilitySeverity Severity  `json:"highestVulnerabilitySeverity"`
 }
 
 func (s ScanAssetStats) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
-		DiscoveredPortsCount int   `json:"discoveredPortsCount"`
-		LastDiscovery        int64 `json:"lastDiscovery"`
+		DiscoveredPortsCount         int      `json:"discoveredPortsCount"`
+		LastDiscovery                int64    `json:"lastDiscovery"`
+		HighestVulnerabilitySeverity Severity `json:"highestVulnerabilitySeverity"`
 	}{
-		DiscoveredPortsCount: s.DiscoveredPortsCount,
-		LastDiscovery:        s.LastDiscovery.Unix(),
+		DiscoveredPortsCount:         s.DiscoveredPortsCount,
+		LastDiscovery:                s.LastDiscovery.Unix(),
+		HighestVulnerabilitySeverity: s.HighestVulnerabilitySeverity,
 	})
 }
 
@@ -78,6 +81,16 @@ type FindingType string
 const (
 	FindingTypePort          FindingType = "port"
 	FindingTypeVulnerability FindingType = "vulnerability"
+)
+
+type Severity string
+
+const (
+	SeverityInfo     Severity = "info"
+	SeverityLow      Severity = "low"
+	SeverityMedium   Severity = "medium"
+	SeverityHigh     Severity = "high"
+	SeverityCritical Severity = "critical"
 )
 
 type AssetFinding struct {
@@ -193,6 +206,7 @@ type ScanAssetRepository interface {
 	DeleteScanAsset(ctx context.Context, tx pgx.Tx, id string) error
 
 	PutAssetFinding(ctx context.Context, tx pgx.Tx, result AssetFinding) error
+	GetAssetFinding(ctx context.Context, tx pgx.Tx, id string) (*AssetFinding, error)
 	ListAssetFindings(ctx context.Context, tx pgx.Tx, assetID string) ([]AssetFinding, error)
 
 	GetAssetStats(ctx context.Context, tx pgx.Tx, assetID string) (*ScanAssetStats, error)
