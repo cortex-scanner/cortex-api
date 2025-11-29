@@ -79,6 +79,7 @@ func (s *Server) Start() {
 	userHandler := handler.NewUserHandler(s.authService)
 	authHandler := handler.NewAuthHandler(s.authService)
 	agentHandler := handler.NewAgentHandler(s.agentService)
+	findingHandler := handler.NewFindingHandler(s.findingService)
 
 	// register public routes
 	s.router.Get("/health", handler.Make(handler.HandleHealth))
@@ -121,6 +122,9 @@ func (s *Server) Start() {
 		r.Post("/agents", handler.Make(agentHandler.HandleCreateAgent))
 		r.Patch("/agents/{id}", handler.Make(agentHandler.HandleUpdateAgent))
 		r.Delete("/agents/{id}", handler.Make(agentHandler.HandleDeleteAgent))
+
+		// findings
+		r.Get("/findings/{id}", handler.Make(findingHandler.HandleGet))
 
 		// auth
 		r.Get("/auth", handler.Make(authHandler.HandleValidateToken))

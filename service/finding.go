@@ -25,12 +25,31 @@ type CreateFindingOptions struct {
 
 type FindingService interface {
 	CreateFinding(ctx context.Context, opts CreateFindingOptions) (*repository.AssetFinding, error)
+	GetFinding(ctx context.Context, id string) (*repository.AssetFinding, error)
 }
 
 type findingService struct {
 	repo   repository.ScanRepository
 	logger *slog.Logger
 	pool   *pgxpool.Pool
+}
+
+func (s findingService) GetFinding(ctx context.Context, id string) (*repository.AssetFinding, error) {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		_ = tx.Rollback(ctx)
+	}()
+
+	finding, err := s.repo.GetAssetFinding(ctx, tx, id)
+	if err != nil {
+		s.logger.ErrorContext(ctx, "unable to get finding", logging.FieldError, err)
+		return nil, err
+	}
+
+	return finding, nil
 }
 
 func (s findingService) CreateFinding(ctx context.Context, opts CreateFindingOptions) (*repository.AssetFinding, error) {
