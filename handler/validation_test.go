@@ -418,3 +418,399 @@ func TestValidateRequestBodyJSONTagWithOmitempty(t *testing.T) {
 	// Should extract "name" from "name,omitempty"
 	assert.Contains(t, structErr.Errors, "name")
 }
+
+// Numeric validation tests
+
+func TestMinValidator(t *testing.T) {
+	// Test int
+	err := Min(5)(10)
+	assert.NoError(t, err)
+
+	err = Min(5)(5)
+	assert.NoError(t, err)
+
+	err = Min(5)(3)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "must be at least 5")
+
+	// Test int64
+	err = Min(int64(100))(int64(200))
+	assert.NoError(t, err)
+
+	err = Min(int64(100))(int64(50))
+	assert.Error(t, err)
+
+	// Test float64
+	err = Min(5.5)(10.2)
+	assert.NoError(t, err)
+
+	err = Min(5.5)(3.2)
+	assert.Error(t, err)
+}
+
+func TestMaxValidator(t *testing.T) {
+	// Test int
+	err := Max(10)(5)
+	assert.NoError(t, err)
+
+	err = Max(10)(10)
+	assert.NoError(t, err)
+
+	err = Max(10)(15)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "must be at most 10")
+
+	// Test int64
+	err = Max(int64(100))(int64(50))
+	assert.NoError(t, err)
+
+	err = Max(int64(100))(int64(150))
+	assert.Error(t, err)
+
+	// Test float64
+	err = Max(10.5)(5.2)
+	assert.NoError(t, err)
+
+	err = Max(10.5)(15.8)
+	assert.Error(t, err)
+}
+
+func TestRangeValidator(t *testing.T) {
+	// Test int
+	err := Range(5, 10)(7)
+	assert.NoError(t, err)
+
+	err = Range(5, 10)(5)
+	assert.NoError(t, err)
+
+	err = Range(5, 10)(10)
+	assert.NoError(t, err)
+
+	err = Range(5, 10)(3)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "must be between 5 and 10")
+
+	err = Range(5, 10)(15)
+	assert.Error(t, err)
+
+	// Test int64
+	err = Range(int64(0), int64(100))(int64(50))
+	assert.NoError(t, err)
+
+	err = Range(int64(0), int64(100))(int64(150))
+	assert.Error(t, err)
+
+	// Test float64
+	err = Range(0.0, 1.0)(0.5)
+	assert.NoError(t, err)
+
+	err = Range(0.0, 1.0)(1.5)
+	assert.Error(t, err)
+}
+
+// Slice/Array validation tests
+
+func TestRequiredWithSlices(t *testing.T) {
+	// Non-empty slice should pass
+	err := Required()([]string{"a", "b"})
+	assert.NoError(t, err)
+
+	// Empty slice should fail
+	err = Required()([]string{})
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "is required")
+
+	// Nil slice should fail
+	var nilSlice []string
+	err = Required()(nilSlice)
+	assert.Error(t, err)
+}
+
+func TestRequiredWithMaps(t *testing.T) {
+	// Non-empty map should pass
+	err := Required()(map[string]string{"key": "value"})
+	assert.NoError(t, err)
+
+	// Empty map should fail
+	err = Required()(map[string]string{})
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "is required")
+
+	// Nil map should fail
+	var nilMap map[string]string
+	err = Required()(nilMap)
+	assert.Error(t, err)
+}
+
+func TestMinLengthValidator(t *testing.T) {
+	// Test with slice
+	err := MinItems(2)([]string{"a", "b", "c"})
+	assert.NoError(t, err)
+
+	err = MinItems(2)([]string{"a"})
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "must have at least 2 element(s)")
+
+	// Test with map
+	err = MinItems(1)(map[string]int{"a": 1, "b": 2})
+	assert.NoError(t, err)
+
+	err = MinItems(3)(map[string]int{"a": 1})
+	assert.Error(t, err)
+
+	// Test with AnyLength
+	err = MinItems(AnyLength)([]string{})
+	assert.NoError(t, err)
+}
+
+func TestMaxLengthValidator(t *testing.T) {
+	// Test with slice
+	err := MaxItems(5)([]string{"a", "b", "c"})
+	assert.NoError(t, err)
+
+	err = MaxItems(2)([]string{"a", "b", "c"})
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "must have at most 2 element(s)")
+
+	// Test with map
+	err = MaxItems(3)(map[string]int{"a": 1, "b": 2})
+	assert.NoError(t, err)
+
+	err = MaxItems(1)(map[string]int{"a": 1, "b": 2})
+	assert.Error(t, err)
+
+	// Test with AnyLength
+	err = MaxItems(AnyLength)([]string{"a", "b", "c", "d", "e"})
+	assert.NoError(t, err)
+}
+
+func TestEachValidator(t *testing.T) {
+	// Test with valid slice elements
+	err := Each(Length(2, 5))([]string{"ab", "abc", "abcd"})
+	assert.NoError(t, err)
+
+	// Test with invalid element
+	err = Each(Length(2, 5))([]string{"ab", "a", "abc"})
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "element at index 1")
+	assert.Contains(t, err.Error(), "must be at least 2 characters long")
+
+	// Test with multiple rules
+	err = Each(Required(), Length(3, 10))([]string{"abc", "defg"})
+	assert.NoError(t, err)
+
+	err = Each(Required(), Length(3, 10))([]string{"abc", ""})
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "element at index 1")
+
+	// Test with numeric slice
+	err = Each(Min(0), Max(100))([]int{10, 50, 99})
+	assert.NoError(t, err)
+
+	err = Each(Min(0), Max(100))([]int{10, 150, 99})
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "element at index 1")
+}
+
+func TestKeysValidator(t *testing.T) {
+	// Test with valid keys
+	m := map[string]int{"ab": 1, "abc": 2, "abcd": 3}
+	err := Keys(Length(2, 5))(m)
+	assert.NoError(t, err)
+
+	// Test with invalid key
+	m = map[string]int{"ab": 1, "a": 2}
+	err = Keys(Length(2, 5))(m)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "key 'a'")
+
+	// Test with multiple rules
+	m = map[string]int{"test1": 1, "test2": 2}
+	err = Keys(Required(), Length(3, 10))(m)
+	assert.NoError(t, err)
+}
+
+func TestValuesValidator(t *testing.T) {
+	// Test with valid values
+	m := map[string]int{"a": 10, "b": 50, "c": 99}
+	err := Values(Min(0), Max(100))(m)
+	assert.NoError(t, err)
+
+	// Test with invalid value
+	m = map[string]int{"a": 10, "b": 150}
+	err = Values(Min(0), Max(100))(m)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "value for key")
+
+	// Test with string values
+	ms := map[string]string{"a": "test", "b": "hello"}
+	err = Values(Length(3, 10))(ms)
+	assert.NoError(t, err)
+
+	ms = map[string]string{"a": "test", "b": "ab"}
+	err = Values(Length(3, 10))(ms)
+	assert.Error(t, err)
+}
+
+// Integration tests with ValidateRequestBody
+
+func TestValidateRequestBodyWithNumericFields(t *testing.T) {
+	type CreateUserRequest struct {
+		Age    int     `json:"age"`
+		Score  float64 `json:"score"`
+		Points int64   `json:"points"`
+	}
+
+	body := `{"age":25,"score":85.5,"points":1000}`
+	req := httptest.NewRequest(http.MethodPost, "/users", strings.NewReader(body))
+
+	var result CreateUserRequest
+	err := ValidateRequestBody(req, &result,
+		Field(&result.Age, Min(18), Max(120)),
+		Field(&result.Score, Range(0.0, 100.0)),
+		Field(&result.Points, Min(int64(0))),
+	)
+
+	assert.NoError(t, err)
+	assert.Equal(t, 25, result.Age)
+	assert.Equal(t, 85.5, result.Score)
+	assert.Equal(t, int64(1000), result.Points)
+}
+
+func TestValidateRequestBodyWithNumericFieldsFailure(t *testing.T) {
+	type CreateUserRequest struct {
+		Age   int     `json:"age"`
+		Score float64 `json:"score"`
+	}
+
+	body := `{"age":15,"score":105.5}`
+	req := httptest.NewRequest(http.MethodPost, "/users", strings.NewReader(body))
+
+	var result CreateUserRequest
+	err := ValidateRequestBody(req, &result,
+		Field(&result.Age, Min(18), Max(120)),
+		Field(&result.Score, Range(0.0, 100.0)),
+	)
+
+	assert.Error(t, err)
+
+	structErr, ok := err.(StructValidationError)
+	assert.True(t, ok)
+	assert.Len(t, structErr.Errors, 2)
+	assert.Contains(t, structErr.Errors, "age")
+	assert.Contains(t, structErr.Errors, "score")
+}
+
+func TestValidateRequestBodyWithSliceFields(t *testing.T) {
+	type TagsRequest struct {
+		Tags []string `json:"tags"`
+	}
+
+	body := `{"tags":["security","compliance","audit"]}`
+	req := httptest.NewRequest(http.MethodPost, "/test", strings.NewReader(body))
+
+	var result TagsRequest
+	err := ValidateRequestBody(req, &result,
+		Field(&result.Tags, Required(), MinItems(1), MaxItems(10), Each(Length(3, 20))),
+	)
+
+	assert.NoError(t, err)
+	assert.Len(t, result.Tags, 3)
+}
+
+func TestValidateRequestBodyWithSliceFieldsFailure(t *testing.T) {
+	type TagsRequest struct {
+		Tags []string `json:"tags"`
+	}
+
+	body := `{"tags":["ab","security"]}`
+	req := httptest.NewRequest(http.MethodPost, "/test", strings.NewReader(body))
+
+	var result TagsRequest
+	err := ValidateRequestBody(req, &result,
+		Field(&result.Tags, Each(Length(3, 20))),
+	)
+
+	assert.Error(t, err)
+
+	structErr, ok := err.(StructValidationError)
+	assert.True(t, ok)
+	assert.Contains(t, structErr.Errors, "tags")
+	assert.Contains(t, structErr.Errors["tags"].Error(), "element at index 0")
+}
+
+func TestValidateRequestBodyWithMapFields(t *testing.T) {
+	type MetadataRequest struct {
+		Metadata map[string]string `json:"metadata"`
+	}
+
+	body := `{"metadata":{"env":"production","region":"us-east-1"}}`
+	req := httptest.NewRequest(http.MethodPost, "/test", strings.NewReader(body))
+
+	var result MetadataRequest
+	err := ValidateRequestBody(req, &result,
+		Field(&result.Metadata, Required(), MinItems(1), Keys(Length(2, 20)), Values(Length(1, 50))),
+	)
+
+	assert.NoError(t, err)
+	assert.Len(t, result.Metadata, 2)
+}
+
+func TestValidateRequestBodyWithMapFieldsFailure(t *testing.T) {
+	type MetadataRequest struct {
+		Metadata map[string]string `json:"metadata"`
+	}
+
+	body := `{"metadata":{"e":"production","region":"us-east-1"}}`
+	req := httptest.NewRequest(http.MethodPost, "/test", strings.NewReader(body))
+
+	var result MetadataRequest
+	err := ValidateRequestBody(req, &result,
+		Field(&result.Metadata, Keys(Length(2, 20))),
+	)
+
+	assert.Error(t, err)
+
+	structErr, ok := err.(StructValidationError)
+	assert.True(t, ok)
+	assert.Contains(t, structErr.Errors, "metadata")
+	assert.Contains(t, structErr.Errors["metadata"].Error(), "key 'e'")
+}
+
+func TestValidateRequestBodyComplexExample(t *testing.T) {
+	type CreateScanConfigRequest struct {
+		Name        string            `json:"name"`
+		Description string            `json:"description"`
+		MaxThreads  int               `json:"max_threads"`
+		Timeout     float64           `json:"timeout"`
+		Tags        []string          `json:"tags"`
+		Metadata    map[string]string `json:"metadata"`
+	}
+
+	body := `{
+		"name":"Security Scan",
+		"description":"Full security scan configuration",
+		"max_threads":10,
+		"timeout":300.5,
+		"tags":["security","compliance"],
+		"metadata":{"env":"prod","region":"us-east-1"}
+	}`
+	req := httptest.NewRequest(http.MethodPost, "/scan-configs", strings.NewReader(body))
+
+	var result CreateScanConfigRequest
+	err := ValidateRequestBody(req, &result,
+		Field(&result.Name, Required(), Length(3, 100)),
+		Field(&result.Description, Length(0, 500)),
+		Field(&result.MaxThreads, Min(1), Max(100)),
+		Field(&result.Timeout, Range(0.0, 3600.0)),
+		Field(&result.Tags, MinItems(1), MaxItems(20), Each(Length(2, 50))),
+		Field(&result.Metadata, MinItems(0), MaxItems(50), Keys(Length(1, 100)), Values(Length(1, 500))),
+	)
+
+	assert.NoError(t, err)
+	assert.Equal(t, "Security Scan", result.Name)
+	assert.Equal(t, 10, result.MaxThreads)
+	assert.Equal(t, 300.5, result.Timeout)
+	assert.Len(t, result.Tags, 2)
+	assert.Len(t, result.Metadata, 2)
+}

@@ -4,17 +4,15 @@ import (
 	"cortex/repository"
 	"cortex/service"
 	"net/http"
-
-	"github.com/go-playground/validator/v10"
 )
 
 type createAssetRequestBody struct {
-	Endpoint string `json:"endpoint" validate:"required,max=2048"`
+	Endpoint string `json:"endpoint"`
 }
 
 type updateAssetRequestBody struct {
-	ID       string `json:"id" validate:"required,uuid4"`
-	Endpoint string `json:"endpoint" validate:"required,max=2048"`
+	ID       string `json:"id"`
+	Endpoint string `json:"endpoint"`
 }
 
 type createAssetFindingBody struct {
@@ -23,7 +21,6 @@ type createAssetFindingBody struct {
 }
 
 type AssetHandler struct {
-	validate       *validator.Validate
 	scanService    service.ScanService
 	findingService service.FindingService
 }
@@ -32,11 +29,11 @@ func NewAssetHandler(scanService service.ScanService, findingService service.Fin
 	return &AssetHandler{
 		scanService:    scanService,
 		findingService: findingService,
-		validate:       validator.New(validator.WithRequiredStructEnabled()),
 	}
 }
 
 func (h AssetHandler) HandleList(w http.ResponseWriter, r *http.Request) error {
+	// TODO: schema validation for query
 	statsRequested := r.URL.Query().Get("stats") == "true"
 
 	if statsRequested {
@@ -66,7 +63,12 @@ func (h AssetHandler) HandleList(w http.ResponseWriter, r *http.Request) error {
 }
 
 func (h AssetHandler) HandleGet(w http.ResponseWriter, r *http.Request) error {
-	id := r.PathValue("id")
+	id, err := ValidateParam(r, "id")
+	if err != nil {
+		return WrapError(err)
+	}
+
+	// TODO: schema validation for query
 	statsRequested := r.URL.Query().Get("stats") == "true"
 
 	if statsRequested {
@@ -96,7 +98,10 @@ func (h AssetHandler) HandleGet(w http.ResponseWriter, r *http.Request) error {
 
 func (h AssetHandler) HandleCreate(w http.ResponseWriter, r *http.Request) error {
 	var requestBody createAssetRequestBody
-	if err := ParseAndValidateBody(&requestBody, r, h.validate); err != nil {
+	err := ValidateRequestBody(r, &requestBody,
+		Field(&requestBody.Endpoint, Required(), Length(1, 2048)),
+	)
+	if err != nil {
 		return WrapError(err)
 	}
 
@@ -112,10 +117,17 @@ func (h AssetHandler) HandleCreate(w http.ResponseWriter, r *http.Request) error
 }
 
 func (h AssetHandler) HandleUpdate(w http.ResponseWriter, r *http.Request) error {
-	id := r.PathValue("id")
+	id, err := ValidateParam(r, "id")
+	if err != nil {
+		return WrapError(err)
+	}
 
 	var requestBody updateAssetRequestBody
-	if err := ParseAndValidateBody(&requestBody, r, h.validate); err != nil {
+	err = ValidateRequestBody(r, &requestBody,
+		Field(&requestBody.ID, UUID()),
+		Field(&requestBody.Endpoint, Required(), Length(1, 2048)),
+	)
+	if err != nil {
 		return WrapError(err)
 	}
 
@@ -131,7 +143,10 @@ func (h AssetHandler) HandleUpdate(w http.ResponseWriter, r *http.Request) error
 }
 
 func (h AssetHandler) HandleDelete(w http.ResponseWriter, r *http.Request) error {
-	id := r.PathValue("id")
+	id, err := ValidateParam(r, "id")
+	if err != nil {
+		return WrapError(err)
+	}
 
 	asset, err := h.scanService.DeleteAsset(r.Context(), id)
 	if err != nil {
@@ -145,7 +160,10 @@ func (h AssetHandler) HandleDelete(w http.ResponseWriter, r *http.Request) error
 }
 
 func (h AssetHandler) HandleListAssetFindings(w http.ResponseWriter, r *http.Request) error {
-	assetId := r.PathValue("id")
+	assetId, err := ValidateParam(r, "id")
+	if err != nil {
+		return WrapError(err)
+	}
 
 	results, err := h.scanService.ListAssetFindings(r.Context(), assetId)
 	if err != nil {
@@ -159,14 +177,22 @@ func (h AssetHandler) HandleListAssetFindings(w http.ResponseWriter, r *http.Req
 }
 
 func (h AssetHandler) HandleCreateFinding(w http.ResponseWriter, r *http.Request) error {
-	assetId := r.PathValue("id")
+	assetId, err := ValidateParam(r, "id")
+	if err != nil {
+		return WrapError(err)
+	}
+
 	var requestBody createAssetFindingBody
-	if err := ParseAndValidateBody(&requestBody, r, h.validate); err != nil {
+	err = ValidateRequestBody(r, &requestBody,
+		Field(&requestBody.Type, Required(), Length(1, AnyLength)),
+		Field(&requestBody.Data, Required()),
+	)
+	if err != nil {
 		return WrapError(err)
 	}
 
 	// check if asset exists
-	_, err := h.scanService.GetAsset(r.Context(), assetId)
+	_, err = h.scanService.GetAsset(r.Context(), assetId)
 	if err != nil {
 		return WrapError(err)
 	}
@@ -189,7 +215,10 @@ func (h AssetHandler) HandleCreateFinding(w http.ResponseWriter, r *http.Request
 }
 
 func (h AssetHandler) HandleListAssetHistory(w http.ResponseWriter, r *http.Request) error {
-	assetId := r.PathValue("id")
+	assetId, err := ValidateParam(r, "id")
+	if err != nil {
+		return WrapError(err)
+	}
 
 	results, err := h.scanService.ListAssetHistory(r.Context(), assetId)
 	if err != nil {

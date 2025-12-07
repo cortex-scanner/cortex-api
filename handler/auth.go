@@ -4,25 +4,22 @@ import (
 	cortexContext "cortex/context"
 	"cortex/repository"
 	"cortex/service"
-	"github.com/go-playground/validator/v10"
 	"net/http"
 )
 
 type AuthHandler struct {
 	authService service.AuthService
-	validate    *validator.Validate
 }
 
 func NewAuthHandler(authService service.AuthService) *AuthHandler {
 	return &AuthHandler{
 		authService: authService,
-		validate:    validator.New(validator.WithRequiredStructEnabled()),
 	}
 }
 
 type usernamePasswordLoginRequestBody struct {
-	Username string `json:"username" validate:"required"`
-	Password string `json:"password" validate:"required"`
+	Username string `json:"username"`
+	Password string `json:"password"`
 }
 
 type tokenResponse struct {
@@ -32,7 +29,11 @@ type tokenResponse struct {
 
 func (h AuthHandler) HandleUsernamePasswordLogin(w http.ResponseWriter, r *http.Request) error {
 	var requestBody usernamePasswordLoginRequestBody
-	if err := ParseAndValidateBody(&requestBody, r, h.validate); err != nil {
+	err := ValidateRequestBody(r, &requestBody,
+		Field(&requestBody.Username, Required(), Length(1, AnyLength)),
+		Field(&requestBody.Password, Required(), Length(1, AnyLength)),
+	)
+	if err != nil {
 		// always return 401 to not leak information for now
 		return APIError{
 			StatusCode: http.StatusUnauthorized,

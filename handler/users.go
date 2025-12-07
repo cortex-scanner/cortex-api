@@ -3,19 +3,15 @@ package handler
 import (
 	"cortex/service"
 	"net/http"
-
-	"github.com/go-playground/validator/v10"
 )
 
 type UserHandler struct {
 	authService service.AuthService
-	validate    *validator.Validate
 }
 
 func NewUserHandler(authService service.AuthService) *UserHandler {
 	return &UserHandler{
 		authService: authService,
-		validate:    validator.New(validator.WithRequiredStructEnabled()),
 	}
 }
 

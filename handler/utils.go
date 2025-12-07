@@ -201,21 +201,18 @@ func respondOneWithStatus[T any](w http.ResponseWriter, r *http.Request, status 
 	return nil
 }
 
-func ParseAndValidateBody[T any](target *T, r *http.Request, validate *validator.Validate) error {
-	if err := json.NewDecoder(r.Body).Decode(target); err != nil {
-		return InvalidRequest("cannot parse request body", nil)
-	}
-	if err := validate.Struct(target); err != nil {
-		return InvalidRequest("invalid body", err)
-	}
-
-	return nil
+func ValidateParam(r *http.Request, param string) (string, error) {
+	return ValidateString(r.PathValue(param), UUID()).Validate()
 }
 
 func WrapError(err error) APIError {
 	var apiErr APIError
 	if errors.As(err, &apiErr) {
 		return apiErr
+	}
+	var validationErr ValidationError
+	if errors.As(err, &validationErr) {
+		return InvalidRequest(validationErr.Error(), err)
 	}
 
 	// TODO: handle other cases like not found, unique violation, etc.
