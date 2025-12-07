@@ -37,16 +37,17 @@ func TestGetFinding_Success(t *testing.T) {
 	mockService := new(MockFindingService)
 	h := handler.NewFindingHandler(mockService)
 
+	testID := "5a7bdb69-d7d6-482f-a653-2ab01480999f"
 	finding := &repository.AssetFinding{
-		ID:      "test-id",
-		AssetID: "asset-id",
+		ID:      testID,
+		AssetID: "7761259c-e6dd-4930-946b-ee9975fde3e4",
 		Type:    repository.FindingTypePort,
 	}
 
-	mockService.On("GetFinding", mock.Anything, "test-id").Return(finding, nil)
+	mockService.On("GetFinding", mock.Anything, testID).Return(finding, nil)
 
 	runner := test.NewTestRunner(h.HandleGet)
-	runner.WithPath("id", "test-id").Run(t).ExpectNoError().ExpectStatusCode(http.StatusOK)
+	runner.WithPath("id", testID).Run(t).ExpectNoError().ExpectStatusCode(http.StatusOK)
 }
 
 func TestGetFinding_NotFound(t *testing.T) {

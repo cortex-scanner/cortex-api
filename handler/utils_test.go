@@ -6,21 +6,14 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 
-	"github.com/go-playground/validator/v10"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestNotFound(t *testing.T) {
 	err := handler.NotFound("type", "id")
 	assert.Equal(t, err.StatusCode, http.StatusNotFound)
-}
-
-func TestInvalidRequest(t *testing.T) {
-	err := handler.InvalidRequest("message", nil)
-	assert.Equal(t, err.StatusCode, http.StatusBadRequest)
 }
 
 func TestOtherError(t *testing.T) {
@@ -154,14 +147,14 @@ func TestMakeGenericError(t *testing.T) {
 
 func TestMakeAPIError(t *testing.T) {
 	testHandler := func(w http.ResponseWriter, r *http.Request) error {
-		return handler.InvalidRequest("test", errors.New("test"))
+		return handler.NotFound("test", "1")
 	}
 	expectedResponse := handler.ErrorResponse{
 		ID:         "",
 		APIVersion: 1,
 		Error: handler.ErrorResponseValue{
-			Code:    http.StatusBadRequest,
-			Message: "API error: test",
+			Code:    http.StatusNotFound,
+			Message: "API error: test with id 1 not found",
 			Errors:  make([]handler.ErrorResponseStack, 0),
 		},
 	}
@@ -172,53 +165,7 @@ func TestMakeAPIError(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	apiHandler.ServeHTTP(rr, req)
 
-	assert.Equal(t, rr.Code, http.StatusBadRequest)
+	assert.Equal(t, rr.Code, http.StatusNotFound)
 
 	test.AssertJSON(t, rr.Body.String(), expectedResponse)
-}
-
-func TestParseAndValidateBodySuccess(t *testing.T) {
-	type TestStruct struct {
-		Required string `json:"required" validate:"required"`
-	}
-	structValidator := validator.New(validator.WithRequiredStructEnabled())
-
-	expectedParsedBody := TestStruct{
-		Required: "test",
-	}
-
-	var body TestStruct
-	req := httptest.NewRequest(http.MethodGet, "/", strings.NewReader("{\"required\":\"test\"}"))
-	err := handler.ParseAndValidateBody(&body, req, structValidator)
-	assert.Nil(t, err)
-	assert.Equal(t, expectedParsedBody, body)
-}
-
-func TestParseAndValidateBodyFail(t *testing.T) {
-	type TestStruct struct {
-		Required string `json:"required" validate:"required"`
-	}
-	structValidator := validator.New(validator.WithRequiredStructEnabled())
-
-	t.Run("Parse invalid json", func(t *testing.T) {
-		var body TestStruct
-		req := httptest.NewRequest(http.MethodGet, "/", strings.NewReader("{invalid"))
-		err := handler.ParseAndValidateBody(&body, req, structValidator)
-		assert.NotNil(t, err)
-
-		var apiErr handler.APIError
-		assert.ErrorAs(t, err, &apiErr)
-		assert.Equal(t, http.StatusBadRequest, apiErr.StatusCode)
-	})
-
-	t.Run("Parse invalid struct", func(t *testing.T) {
-		var body TestStruct
-		req := httptest.NewRequest(http.MethodGet, "/", strings.NewReader("{}"))
-		err := handler.ParseAndValidateBody(&body, req, structValidator)
-		assert.NotNil(t, err)
-
-		var apiErr handler.APIError
-		assert.ErrorAs(t, err, &apiErr)
-		assert.Equal(t, http.StatusBadRequest, apiErr.StatusCode)
-	})
 }

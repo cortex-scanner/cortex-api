@@ -6,8 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-
-	"github.com/go-playground/validator/v10"
 )
 
 /********** Responses **********/
@@ -115,24 +113,6 @@ func NotFound(objectType string, objectID string) APIError {
 	}
 }
 
-func InvalidRequest(message string, validationError error) APIError {
-	errorMessage := message
-
-	valErr := validator.ValidationErrors{}
-	fieldErrorMessage := ""
-	if errors.As(validationError, &valErr) {
-		for _, fieldError := range valErr {
-			fieldErrorMessage += fmt.Sprintf("%s:%s;", fieldError.Field(), fieldError.Error())
-		}
-		errorMessage += ": " + fieldErrorMessage
-	}
-
-	return APIError{
-		StatusCode: http.StatusBadRequest,
-		Message:    errorMessage,
-	}
-}
-
 func OtherError(err error) APIError {
 	return APIError{
 		StatusCode: http.StatusInternalServerError,
@@ -212,7 +192,10 @@ func WrapError(err error) APIError {
 	}
 	var validationErr ValidationError
 	if errors.As(err, &validationErr) {
-		return InvalidRequest(validationErr.Error(), err)
+		return APIError{
+			StatusCode: http.StatusBadRequest,
+			Message:    validationErr.Error(),
+		}
 	}
 
 	// TODO: handle other cases like not found, unique violation, etc.
