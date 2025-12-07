@@ -4,13 +4,11 @@ import (
 	"cortex/service"
 	"net/http"
 	"time"
-
-	"github.com/go-playground/validator/v10"
 )
 
 type runScanRequestBody struct {
-	ScanConfigId string   `json:"configId" validate:"required,uuid4"`
-	AssetIDs     []string `json:"assetIds" validate:"required,dive,uuid4"`
+	ScanConfigId string   `json:"configId"`
+	AssetIDs     []string `json:"assetIds"`
 }
 
 type updateScanRequestBody struct {
@@ -21,13 +19,11 @@ type updateScanRequestBody struct {
 
 type ScanHandler struct {
 	scanService service.ScanService
-	validate    *validator.Validate
 }
 
 func NewScanHandler(scanService service.ScanService) *ScanHandler {
 	return &ScanHandler{
 		scanService: scanService,
-		validate:    validator.New(validator.WithRequiredStructEnabled()),
 	}
 }
 
@@ -44,7 +40,11 @@ func (h ScanHandler) HandleList(w http.ResponseWriter, r *http.Request) error {
 }
 
 func (h ScanHandler) HandleGet(w http.ResponseWriter, r *http.Request) error {
-	id := r.PathValue("id")
+	id, err := ValidateParam(r, "id")
+	if err != nil {
+		return WrapError(err)
+	}
+
 	scan, err := h.scanService.GetScan(r.Context(), id)
 	if err != nil {
 		return WrapError(err)
@@ -58,7 +58,11 @@ func (h ScanHandler) HandleGet(w http.ResponseWriter, r *http.Request) error {
 
 func (h ScanHandler) HandleRun(w http.ResponseWriter, r *http.Request) error {
 	var requestBody runScanRequestBody
-	if err := ParseAndValidateBody(&requestBody, r, h.validate); err != nil {
+	err := ValidateRequestBody(r, &requestBody,
+		Field(&requestBody.ScanConfigId, Required(), UUID()),
+		Field(&requestBody.AssetIDs, Required(), MinItems(1), Each(UUID())),
+	)
+	if err != nil {
 		return WrapError(err)
 	}
 
@@ -74,9 +78,18 @@ func (h ScanHandler) HandleRun(w http.ResponseWriter, r *http.Request) error {
 }
 
 func (h ScanHandler) HandleUpdate(w http.ResponseWriter, r *http.Request) error {
-	id := r.PathValue("id")
+	id, err := ValidateParam(r, "id")
+	if err != nil {
+		return WrapError(err)
+	}
+
 	var requestBody updateScanRequestBody
-	if err := ParseAndValidateBody(&requestBody, r, h.validate); err != nil {
+	err = ValidateRequestBody(r, &requestBody,
+		Field(&requestBody.Status, In("queued", "running", "complete", "failed", "cancelled")),
+		Field(&requestBody.StartTimestamp, Min(0)),
+		Field(&requestBody.EndTimestamp, Min(0)),
+	)
+	if err != nil {
 		return WrapError(err)
 	}
 

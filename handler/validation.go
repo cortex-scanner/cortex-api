@@ -39,11 +39,28 @@
 //
 // # Available Rules
 //
+// String rules:
 // - Required(): validates non-empty values
 // - Length(min, max): validates string length (use AnyLength for no limit)
 // - Regex(pattern): validates against regex pattern
 // - UUID(): validates UUID format
 // - In(values...): validates value is in allowed list
+//
+// Numeric rules:
+// - Min(min): validates minimum value for int, int64, float64
+// - Max(max): validates maximum value for int, int64, float64
+// - Range(min, max): validates value is within range
+//
+// Slice/Array rules:
+// - MinItems(min): validates minimum number of elements
+// - MaxItems(max): validates maximum number of elements
+// - Each(rules...): validates each element in slice
+//
+// Map rules:
+// - MinItems(min): validates minimum number of entries
+// - MaxItems(max): validates maximum number of entries
+// - Keys(rules...): validates each key in map
+// - Values(rules...): validates each value in map
 package handler
 
 import (
@@ -123,22 +140,38 @@ func UUID() ValidationRule {
 	return Regex("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
 }
 
-// Required validates that a value is not empty
+// Required validates that a value is not empty.
+// For strings: checks non-empty
+// For slices/maps: checks length > 0
+// For pointers: checks not nil
+// For bool: always passes (use explicit checks for bool validation)
+// For numeric types: always passes (use Min/Max for numeric validation)
 func Required() ValidationRule {
 	return func(value any) error {
-		switch v := value.(type) {
-		case string:
-			if v == "" {
-				return NewValidationError("is required")
-			}
-		case nil:
+		if value == nil {
 			return NewValidationError("is required")
-		default:
-			// For other types, just check for nil
-			if v == nil {
+		}
+
+		// Use reflection to handle different types
+		v := reflect.ValueOf(value)
+
+		switch v.Kind() {
+		case reflect.String:
+			if v.String() == "" {
 				return NewValidationError("is required")
 			}
+		case reflect.Slice, reflect.Map, reflect.Array:
+			if v.Len() == 0 {
+				return NewValidationError("is required")
+			}
+		case reflect.Ptr:
+			if v.IsNil() {
+				return NewValidationError("is required")
+			}
+			// For bool, int, float, etc., we don't check for "empty"
+			// since they always have a value (zero value is valid)
 		}
+
 		return nil
 	}
 }
@@ -153,6 +186,190 @@ func In(allowed ...string) ValidationRule {
 			}
 		}
 		return NewValidationError(fmt.Sprintf("must be one of: %s", strings.Join(allowed, ", ")))
+	}
+}
+
+// Min validates that a numeric value is greater than or equal to min.
+// Supports int, int64, float64 types.
+func Min[T int | int64 | float64](min T) ValidationRule {
+	return func(value any) error {
+		switch v := value.(type) {
+		case int:
+			if T(v) < min {
+				return NewValidationError(fmt.Sprintf("must be at least %v", min))
+			}
+		case int64:
+			if T(v) < min {
+				return NewValidationError(fmt.Sprintf("must be at least %v", min))
+			}
+		case float64:
+			if T(v) < min {
+				return NewValidationError(fmt.Sprintf("must be at least %v", min))
+			}
+		default:
+			return NewValidationError("Min validator only supports int, int64, and float64 types")
+		}
+		return nil
+	}
+}
+
+// Max validates that a numeric value is less than or equal to max.
+// Supports int, int64, float64 types.
+func Max[T int | int64 | float64](max T) ValidationRule {
+	return func(value any) error {
+		switch v := value.(type) {
+		case int:
+			if T(v) > max {
+				return NewValidationError(fmt.Sprintf("must be at most %v", max))
+			}
+		case int64:
+			if T(v) > max {
+				return NewValidationError(fmt.Sprintf("must be at most %v", max))
+			}
+		case float64:
+			if T(v) > max {
+				return NewValidationError(fmt.Sprintf("must be at most %v", max))
+			}
+		default:
+			return NewValidationError("Max validator only supports int, int64, and float64 types")
+		}
+		return nil
+	}
+}
+
+// Range validates that a numeric value is within the specified range (inclusive).
+// Supports int, int64, float64 types.
+func Range[T int | int64 | float64](min T, max T) ValidationRule {
+	return func(value any) error {
+		switch v := value.(type) {
+		case int:
+			if T(v) < min || T(v) > max {
+				return NewValidationError(fmt.Sprintf("must be between %v and %v", min, max))
+			}
+		case int64:
+			if T(v) < min || T(v) > max {
+				return NewValidationError(fmt.Sprintf("must be between %v and %v", min, max))
+			}
+		case float64:
+			if T(v) < min || T(v) > max {
+				return NewValidationError(fmt.Sprintf("must be between %v and %v", min, max))
+			}
+		default:
+			return NewValidationError("Range validator only supports int, int64, and float64 types")
+		}
+		return nil
+	}
+}
+
+// MinItems validates that a slice, array, or map has at least min elements.
+// Use AnyLength for no minimum limit.
+func MinItems(min int) ValidationRule {
+	return func(value any) error {
+		if min == AnyLength {
+			return nil
+		}
+
+		v := reflect.ValueOf(value)
+
+		switch v.Kind() {
+		case reflect.Slice, reflect.Array, reflect.Map:
+			if v.Len() < min {
+				return NewValidationError(fmt.Sprintf("must have at least %d element(s)", min))
+			}
+		default:
+			return NewValidationError("MinItems validator only supports slices, arrays, and maps")
+		}
+
+		return nil
+	}
+}
+
+// MaxItems validates that a slice, array, or map has at most max elements.
+// Use AnyLength for no maximum limit.
+func MaxItems(max int) ValidationRule {
+	return func(value any) error {
+		if max == AnyLength {
+			return nil
+		}
+
+		v := reflect.ValueOf(value)
+
+		switch v.Kind() {
+		case reflect.Slice, reflect.Array, reflect.Map:
+			if v.Len() > max {
+				return NewValidationError(fmt.Sprintf("must have at most %d element(s)", max))
+			}
+		default:
+			return NewValidationError("MaxItems validator only supports slices, arrays, and maps")
+		}
+
+		return nil
+	}
+}
+
+// Each validates each element in a slice or array against the provided rules.
+func Each(rules ...ValidationRule) ValidationRule {
+	return func(value any) error {
+		v := reflect.ValueOf(value)
+
+		if v.Kind() != reflect.Slice && v.Kind() != reflect.Array {
+			return NewValidationError("Each validator only supports slices and arrays")
+		}
+
+		for i := 0; i < v.Len(); i++ {
+			elem := v.Index(i).Interface()
+			for _, rule := range rules {
+				if err := rule(elem); err != nil {
+					return NewValidationError(fmt.Sprintf("element at index %d: %s", i, err.Error()))
+				}
+			}
+		}
+
+		return nil
+	}
+}
+
+// Keys validates each key in a map against the provided rules.
+func Keys(rules ...ValidationRule) ValidationRule {
+	return func(value any) error {
+		v := reflect.ValueOf(value)
+
+		if v.Kind() != reflect.Map {
+			return NewValidationError("Keys validator only supports maps")
+		}
+
+		for _, key := range v.MapKeys() {
+			keyValue := key.Interface()
+			for _, rule := range rules {
+				if err := rule(keyValue); err != nil {
+					return NewValidationError(fmt.Sprintf("key '%v': %s", keyValue, err.Error()))
+				}
+			}
+		}
+
+		return nil
+	}
+}
+
+// Values validates each value in a map against the provided rules.
+func Values(rules ...ValidationRule) ValidationRule {
+	return func(value any) error {
+		v := reflect.ValueOf(value)
+
+		if v.Kind() != reflect.Map {
+			return NewValidationError("Values validator only supports maps")
+		}
+
+		for _, key := range v.MapKeys() {
+			val := v.MapIndex(key).Interface()
+			for _, rule := range rules {
+				if err := rule(val); err != nil {
+					return NewValidationError(fmt.Sprintf("value for key '%v': %s", key.Interface(), err.Error()))
+				}
+			}
+		}
+
+		return nil
 	}
 }
 

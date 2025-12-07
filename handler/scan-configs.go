@@ -3,29 +3,25 @@ package handler
 import (
 	"cortex/service"
 	"net/http"
-
-	"github.com/go-playground/validator/v10"
 )
 
 type createConfigRequestBody struct {
-	Name   string `json:"name" validate:"required,max=1000"`
-	Engine string `json:"engine" validate:"required,oneof=naabu"`
+	Name   string `json:"name"`
+	Engine string `json:"engine"`
 }
 
 type updateConfigRequestBody struct {
-	ID   string `json:"id" validate:"required,uuid4"`
-	Name string `json:"name" validate:"required,max=1000"`
+	ID   string `json:"id"`
+	Name string `json:"name"`
 }
 
 type ScanConfigHandler struct {
-	validate    *validator.Validate
 	scanService service.ScanService
 }
 
 func NewScanConfigHandler(scanService service.ScanService) *ScanConfigHandler {
 	return &ScanConfigHandler{
 		scanService: scanService,
-		validate:    validator.New(validator.WithRequiredStructEnabled()),
 	}
 }
 
@@ -42,7 +38,10 @@ func (h ScanConfigHandler) HandleList(w http.ResponseWriter, r *http.Request) er
 }
 
 func (h ScanConfigHandler) HandleGet(w http.ResponseWriter, r *http.Request) error {
-	id := r.PathValue("id")
+	id, err := ValidateParam(r, "id")
+	if err != nil {
+		return WrapError(err)
+	}
 
 	config, err := h.scanService.GetScanConfig(r.Context(), id)
 	if err != nil {
@@ -57,7 +56,11 @@ func (h ScanConfigHandler) HandleGet(w http.ResponseWriter, r *http.Request) err
 
 func (h ScanConfigHandler) HandleCreate(w http.ResponseWriter, r *http.Request) error {
 	var requestBody createConfigRequestBody
-	if err := ParseAndValidateBody(&requestBody, r, h.validate); err != nil {
+	err := ValidateRequestBody(r, &requestBody,
+		Field(&requestBody.Name, Required(), Length(1, 1000)),
+		Field(&requestBody.Engine, Required(), In("naabu")),
+	)
+	if err != nil {
 		return WrapError(err)
 	}
 
@@ -73,9 +76,17 @@ func (h ScanConfigHandler) HandleCreate(w http.ResponseWriter, r *http.Request) 
 }
 
 func (h ScanConfigHandler) HandleUpdate(w http.ResponseWriter, r *http.Request) error {
-	id := r.PathValue("id")
+	id, err := ValidateParam(r, "id")
+	if err != nil {
+		return WrapError(err)
+	}
+
 	var requestBody updateConfigRequestBody
-	if err := ParseAndValidateBody(&requestBody, r, h.validate); err != nil {
+	err = ValidateRequestBody(r, &requestBody,
+		Field(&requestBody.ID, Required(), UUID()),
+		Field(&requestBody.Name, Required(), Length(1, 1000)),
+	)
+	if err != nil {
 		return WrapError(err)
 	}
 
@@ -91,7 +102,10 @@ func (h ScanConfigHandler) HandleUpdate(w http.ResponseWriter, r *http.Request) 
 }
 
 func (h ScanConfigHandler) HandleDelete(w http.ResponseWriter, r *http.Request) error {
-	id := r.PathValue("id")
+	id, err := ValidateParam(r, "id")
+	if err != nil {
+		return WrapError(err)
+	}
 
 	config, err := h.scanService.DeleteScanConfig(r.Context(), id)
 	if err != nil {

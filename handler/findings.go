@@ -3,24 +3,23 @@ package handler
 import (
 	"cortex/service"
 	"net/http"
-
-	"github.com/go-playground/validator/v10"
 )
 
 type FindingHandler struct {
-	service  service.FindingService
-	validate *validator.Validate
+	service service.FindingService
 }
 
 func NewFindingHandler(service service.FindingService) *FindingHandler {
 	return &FindingHandler{
-		service:  service,
-		validate: validator.New(validator.WithRequiredStructEnabled()),
+		service: service,
 	}
 }
 
 func (h FindingHandler) HandleGet(w http.ResponseWriter, r *http.Request) error {
-	id := r.PathValue("id")
+	id, err := ValidateParam(r, "id")
+	if err != nil {
+		return WrapError(err)
+	}
 
 	finding, err := h.service.GetFinding(r.Context(), id)
 	if err != nil {

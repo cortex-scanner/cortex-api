@@ -4,16 +4,14 @@ import (
 	"cortex/repository"
 	"cortex/service"
 	"net/http"
-
-	"github.com/go-playground/validator/v10"
 )
 
 type createAgentRequestBody struct {
-	Name string `json:"name" validate:"required,max=255"`
+	Name string `json:"name"`
 }
 
 type updateAgentRequestBody struct {
-	Name string `json:"name" validate:"required,max=255"`
+	Name string `json:"name"`
 }
 
 type createAgentResponse struct {
@@ -23,13 +21,11 @@ type createAgentResponse struct {
 
 type AgentHandler struct {
 	agentService service.AgentService
-	validate     *validator.Validate
 }
 
 func NewAgentHandler(agentService service.AgentService) *AgentHandler {
 	return &AgentHandler{
 		agentService: agentService,
-		validate:     validator.New(validator.WithRequiredStructEnabled()),
 	}
 }
 
@@ -46,7 +42,11 @@ func (h AgentHandler) HandleListAgents(w http.ResponseWriter, r *http.Request) e
 }
 
 func (h AgentHandler) HandleGetAgent(w http.ResponseWriter, r *http.Request) error {
-	id := r.PathValue("id")
+	id, err := ValidateParam(r, "id")
+	if err != nil {
+		return WrapError(err)
+	}
+
 	agent, err := h.agentService.GetAgent(r.Context(), id)
 	if err != nil {
 		return WrapError(err)
@@ -60,7 +60,10 @@ func (h AgentHandler) HandleGetAgent(w http.ResponseWriter, r *http.Request) err
 
 func (h AgentHandler) HandleCreateAgent(w http.ResponseWriter, r *http.Request) error {
 	var requestBody createAgentRequestBody
-	if err := ParseAndValidateBody(&requestBody, r, h.validate); err != nil {
+	err := ValidateRequestBody(r, &requestBody,
+		Field(&requestBody.Name, Required(), Length(1, 255)),
+	)
+	if err != nil {
 		return WrapError(err)
 	}
 
@@ -81,10 +84,16 @@ func (h AgentHandler) HandleCreateAgent(w http.ResponseWriter, r *http.Request) 
 }
 
 func (h AgentHandler) HandleUpdateAgent(w http.ResponseWriter, r *http.Request) error {
-	id := r.PathValue("id")
+	id, err := ValidateParam(r, "id")
+	if err != nil {
+		return WrapError(err)
+	}
 
 	var requestBody updateAgentRequestBody
-	if err := ParseAndValidateBody(&requestBody, r, h.validate); err != nil {
+	err = ValidateRequestBody(r, &requestBody,
+		Field(&requestBody.Name, Required(), Length(1, 255)),
+	)
+	if err != nil {
 		return WrapError(err)
 	}
 
@@ -100,7 +109,10 @@ func (h AgentHandler) HandleUpdateAgent(w http.ResponseWriter, r *http.Request) 
 }
 
 func (h AgentHandler) HandleDeleteAgent(w http.ResponseWriter, r *http.Request) error {
-	id := r.PathValue("id")
+	id, err := ValidateParam(r, "id")
+	if err != nil {
+		return WrapError(err)
+	}
 
 	agent, err := h.agentService.DeleteAgent(r.Context(), id)
 	if err != nil {
